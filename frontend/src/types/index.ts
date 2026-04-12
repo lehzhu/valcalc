@@ -110,8 +110,6 @@ export interface Valuation {
   fair_value: string
   fair_value_low: string
   fair_value_high: string
-  confidence: string
-  data_completeness: number
   explanation: string
   method_results: MethodResult[]
   audit_trail: AuditTrail
@@ -125,9 +123,19 @@ export interface ValuationListItem {
   version: number
   primary_method: string
   fair_value: string
-  confidence: string
   created_by: string
   created_at: string
+}
+
+export interface MethodResultOut {
+  method: string
+  value: string
+  value_low: string
+  value_high: string
+  steps: ComputationStep[]
+  assumptions: Assumption[]
+  sources: { name: string; version: string; effective_date: string }[]
+  is_primary: boolean
 }
 
 export interface BenchmarkSector {

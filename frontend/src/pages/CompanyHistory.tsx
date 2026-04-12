@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getCompany, listValuations } from '../api/client'
 import type { Company, ValuationListItem } from '../types'
-import ConfidenceIndicator from '../components/ConfidenceIndicator'
 import ValueTrendLine from '../components/ValueTrendLine'
 
 const METHOD_LABELS: Record<string, string> = { last_round_adjusted: 'Last Round', comps: 'Comps', dcf: 'DCF', manual: 'Manual' }
@@ -53,7 +52,10 @@ export default function CompanyHistory() {
 
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Valuation History</h2>
-        <Link to="/valuations/new" className="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors">New Valuation</Link>
+        <div className="flex gap-2">
+          <Link to={`/companies/${id}/workspace`} className="px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-indigo-50 transition-colors">Open Workspace</Link>
+          <Link to="/valuations/new" className="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors">New Valuation</Link>
+        </div>
       </div>
 
       {valuations.length === 0 ? (
@@ -69,7 +71,6 @@ export default function CompanyHistory() {
                   <span className="text-xs font-mono text-[var(--color-text-tertiary)]">v{v.version}</span>
                   <span className="text-lg font-semibold text-[var(--color-text-primary)]">{formatCurrency(v.fair_value)}</span>
                   <span className="px-2 py-0.5 rounded text-xs font-medium bg-[var(--color-surface-tertiary)] text-[var(--color-text-secondary)]">{METHOD_LABELS[v.primary_method] || v.primary_method}</span>
-                  <ConfidenceIndicator level={v.confidence} />
                 </div>
                 <div className="text-xs text-[var(--color-text-tertiary)]">{new Date(v.created_at).toLocaleDateString()} &middot; {v.created_by}</div>
               </div>

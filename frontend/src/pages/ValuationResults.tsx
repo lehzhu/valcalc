@@ -4,8 +4,6 @@ import { getValuation } from '../api/client'
 import type { Valuation } from '../types'
 import RangeBar from '../components/RangeBar'
 import MethodComparisonChart from '../components/MethodComparisonChart'
-import ConfidenceIndicator from '../components/ConfidenceIndicator'
-import CompletenessRing from '../components/CompletenessRing'
 import ExportMenu from '../components/ExportMenu'
 
 const METHOD_LABELS: Record<string, string> = {
@@ -52,24 +50,12 @@ export default function ValuationResults() {
       </div>
 
       <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-6 mb-6" style={{ boxShadow: 'var(--shadow-md)' }}>
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <p className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">Fair Value Estimate</p>
-            <p className="text-3xl font-bold text-[var(--color-primary)]">{formatCurrency(valuation.fair_value)}</p>
-            <p className="text-sm text-[var(--color-text-tertiary)] mt-1">
-              Range: {formatCurrency(valuation.fair_value_low)} – {formatCurrency(valuation.fair_value_high)}
-            </p>
-          </div>
-          <div className="flex gap-4 items-center">
-            <div className="text-center">
-              <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Confidence</p>
-              <ConfidenceIndicator level={valuation.confidence} />
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Data</p>
-              <CompletenessRing value={valuation.data_completeness} />
-            </div>
-          </div>
+        <div className="mb-6">
+          <p className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">Fair Value Estimate</p>
+          <p className="text-3xl font-bold text-[var(--color-primary)]">{formatCurrency(valuation.fair_value)}</p>
+          <p className="text-sm text-[var(--color-text-tertiary)] mt-1">
+            Range: {formatCurrency(valuation.fair_value_low)} -- {formatCurrency(valuation.fair_value_high)}
+          </p>
         </div>
 
         <div className="mb-6">

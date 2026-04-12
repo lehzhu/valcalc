@@ -1,6 +1,6 @@
 import type {
   User, Company, CompanyCreate, CompanyListItem,
-  Valuation, ValuationListItem, BenchmarkSector,
+  Valuation, ValuationListItem, BenchmarkSector, MethodResultOut,
 } from '../types'
 
 const BASE = '/api/v1'
@@ -32,6 +32,10 @@ export const updateCompany = (id: string, data: Partial<CompanyCreate>) =>
   request<Company>(`/companies/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 export const deleteCompany = (id: string) =>
   request<void>(`/companies/${id}`, { method: 'DELETE' })
+
+// Per-method
+export const runMethod = (companyId: string, method: string, data?: { valuation_date?: string }) =>
+  request<MethodResultOut>(`/companies/${companyId}/methods/${method}`, { method: 'POST', body: JSON.stringify(data ?? {}) })
 
 // Valuations
 export const runValuation = (companyId: string, data: { created_by: string; valuation_date?: string }) =>
