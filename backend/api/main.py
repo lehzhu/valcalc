@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import companies, users
+from api.routes import companies, users, valuations
 
 app = FastAPI(title="VC Audit Valuation Tool", version="0.1.0")
 
@@ -15,6 +15,7 @@ app.add_middleware(
 
 app.include_router(users.router)
 app.include_router(companies.router)
+app.include_router(valuations.router)
 
 
 @app.get("/api/v1/health")
