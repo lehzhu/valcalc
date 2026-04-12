@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listCompanies } from '../api/client'
 import type { CompanyListItem } from '../types'
+import { formatLabel } from '../utils/labels'
 
 const METHOD_LABELS: Record<string, string> = {
   last_round_adjusted: 'Last Round',
@@ -87,10 +88,10 @@ export default function Dashboard() {
                     </Link>
                   </td>
                   <td className="px-5 py-3.5 text-sm text-[var(--color-text-secondary)]">
-                    {company.stage.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    {formatLabel(company.stage)}
                   </td>
                   <td className="px-5 py-3.5 text-sm text-[var(--color-text-secondary)]">
-                    {company.sector.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    {formatLabel(company.sector)}
                   </td>
                   <td className="px-5 py-3.5 text-sm font-medium text-right text-[var(--color-text-primary)]">
                     {formatCurrency(company.latest_valuation)}

@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { getCompany, listValuations } from '../api/client'
 import type { Company, ValuationListItem } from '../types'
 import ValueTrendLine from '../components/ValueTrendLine'
+import { formatLabel } from '../utils/labels'
 
 const METHOD_LABELS: Record<string, string> = { last_round_adjusted: 'Last Round', comps: 'Comps', dcf: 'DCF', manual: 'Manual' }
 
@@ -34,9 +35,9 @@ export default function CompanyHistory() {
       <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-6 mb-6" style={{ boxShadow: 'var(--shadow-sm)' }}>
         <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">{company.name}</h1>
         <div className="flex gap-4 mt-2 text-sm text-[var(--color-text-secondary)]">
-          <span>{company.stage.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+          <span>{formatLabel(company.stage)}</span>
           <span className="text-[var(--color-text-tertiary)]">&middot;</span>
-          <span>{company.sector.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+          <span>{formatLabel(company.sector)}</span>
           {company.current_revenue && (
             <><span className="text-[var(--color-text-tertiary)]">&middot;</span><span>{formatCurrency(company.current_revenue)} revenue</span></>
           )}

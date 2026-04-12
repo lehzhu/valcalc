@@ -1,9 +1,9 @@
 def _setup_valuation(client):
     resp = client.post("/api/v1/companies", json={
         "name": "Export Test Co",
-        "stage": "series_a_plus",
+        "stage": "series_a",
         "sector": "b2b_saas",
-        "revenue_status": "early_revenue",
+        "revenue_status": "growing_revenue",
         "current_revenue": "5000000",
         "created_by": "Alice",
     })

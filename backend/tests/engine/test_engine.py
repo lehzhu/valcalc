@@ -34,9 +34,9 @@ def test_pre_revenue_company():
 def test_revenue_company_with_comps():
     company = CompanyInput(
         name="SaaS Co",
-        stage=CompanyStage.SERIES_A_PLUS,
+        stage=CompanyStage.SERIES_A,
         sector="b2b_saas",
-        revenue_status=RevenueStatus.EARLY_REVENUE,
+        revenue_status=RevenueStatus.GROWING_REVENUE,
         current_revenue=Decimal("5000000"),
     )
     result = run_valuation(company, valuation_date=date(2026, 1, 1))
@@ -44,12 +44,12 @@ def test_revenue_company_with_comps():
     assert result.primary_method == MethodType.COMPS
 
 
-def test_growth_company_with_dcf():
+def test_series_c_company_with_dcf():
     company = CompanyInput(
         name="Growth Fintech",
-        stage=CompanyStage.GROWTH,
+        stage=CompanyStage.SERIES_C_PLUS,
         sector="fintech",
-        revenue_status=RevenueStatus.MEANINGFUL_REVENUE,
+        revenue_status=RevenueStatus.SCALED_REVENUE,
         current_revenue=Decimal("20000000"),
         projections=FinancialProjections(periods=[
             ProjectionPeriod(year=2026, revenue=Decimal("30000000"), ebitda=Decimal("5000000")),
@@ -79,9 +79,9 @@ def test_no_data_falls_back_to_manual():
 def test_audit_trail_completeness():
     company = CompanyInput(
         name="Audit Test",
-        stage=CompanyStage.SERIES_A_PLUS,
+        stage=CompanyStage.SERIES_A,
         sector="cybersecurity",
-        revenue_status=RevenueStatus.EARLY_REVENUE,
+        revenue_status=RevenueStatus.GROWING_REVENUE,
         current_revenue=Decimal("8000000"),
         last_round=FundingRound(
             date=date(2025, 3, 1),
@@ -103,9 +103,9 @@ def test_audit_trail_completeness():
 def test_run_single_method_dcf():
     company = CompanyInput(
         name="DCF Test",
-        stage=CompanyStage.GROWTH,
+        stage=CompanyStage.SERIES_C_PLUS,
         sector="fintech",
-        revenue_status=RevenueStatus.MEANINGFUL_REVENUE,
+        revenue_status=RevenueStatus.SCALED_REVENUE,
         current_revenue=Decimal("20000000"),
         projections=FinancialProjections(periods=[
             ProjectionPeriod(year=2026, revenue=Decimal("30000000"), ebitda=Decimal("5000000")),

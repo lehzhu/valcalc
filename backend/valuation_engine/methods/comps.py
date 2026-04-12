@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
-from valuation_engine.models import CompanyInput, CompanyStage, MethodResult, MethodType, ComputationStep, Assumption, Source
+from valuation_engine.models import CompanyInput, CompanyStage, RevenueStatus, MethodResult, MethodType, ComputationStep, Assumption, Source
 from valuation_engine.benchmarks.loader import get_sector_benchmarks, get_benchmark_version
 
 def _format_currency(value: Decimal) -> str:
@@ -9,10 +9,16 @@ def _format_currency(value: Decimal) -> str:
     if value >= 1_000: return f"${value / 1_000:.0f}K"
     return f"${value:.0f}"
 
-_STAGE_DISCOUNTS = {
-    CompanyStage.PRE_SEED: Decimal("0.30"), CompanyStage.SEED: Decimal("0.25"),
-    CompanyStage.SERIES_A_PLUS: Decimal("0.15"), CompanyStage.GROWTH: Decimal("0.08"),
-    CompanyStage.MATURE_PRIVATE: Decimal("0.05"),
+_BASE_STAGE_DISCOUNTS = {
+    CompanyStage.PRE_SEED: Decimal("0.35"), CompanyStage.SEED: Decimal("0.30"),
+    CompanyStage.SERIES_A: Decimal("0.20"), CompanyStage.SERIES_B: Decimal("0.12"),
+    CompanyStage.SERIES_C_PLUS: Decimal("0.07"), CompanyStage.LATE_PRE_IPO: Decimal("0.04"),
+}
+
+_REVENUE_DLOM_ADJUSTMENT = {
+    RevenueStatus.EARLY_REVENUE: Decimal("0.05"),
+    RevenueStatus.GROWING_REVENUE: Decimal("0.0"),
+    RevenueStatus.SCALED_REVENUE: Decimal("-0.02"),
 }
 
 class ComparableCompanyMultiples:
@@ -67,17 +73,23 @@ class ComparableCompanyMultiples:
         adjusted_low = (base_low * growth_adjustment).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         adjusted_high = (base_high * growth_adjustment).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
-        discount = _STAGE_DISCOUNTS.get(company.stage, Decimal("0.15"))
+        base_discount = _BASE_STAGE_DISCOUNTS.get(company.stage, Decimal("0.15"))
+        rev_adj = _REVENUE_DLOM_ADJUSTMENT.get(company.revenue_status, Decimal("0.0"))
+        discount = max(Decimal("0.0"), base_discount + rev_adj)
         discount_factor = Decimal("1") - discount
         final_value = (adjusted_value * discount_factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         final_low = (adjusted_low * discount_factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         final_high = (adjusted_high * discount_factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
-        steps.append(ComputationStep(description="Apply stage/size discount", formula="adjusted_value × (1 - discount)",
-            inputs={"adjusted_value": _format_currency(adjusted_value), "stage": company.stage.value, "discount": f"{discount:.0%}"},
+        discount_parts = [f"{base_discount:.0%} DLOM for {company.stage.value} stage"]
+        if rev_adj != 0:
+            discount_parts.append(f"{rev_adj:+.0%} for {company.revenue_status.value.replace('_', ' ')}")
+
+        steps.append(ComputationStep(description="Apply DLOM (illiquidity discount)", formula="adjusted_value × (1 - DLOM)",
+            inputs={"adjusted_value": _format_currency(adjusted_value), "stage": company.stage.value, "DLOM": f"{discount:.0%}"},
             output=_format_currency(final_value)))
-        assumptions.append(Assumption(name="Stage/size discount", value=f"-{discount:.0%}",
-            rationale=f"Illiquidity and size discount for {company.stage.value} stage", overrideable=True))
+        assumptions.append(Assumption(name="DLOM (illiquidity discount)", value=f"-{discount:.0%}",
+            rationale="; ".join(discount_parts), overrideable=True))
 
         return MethodResult(method=MethodType.COMPS, value=final_value, value_low=final_low, value_high=final_high,
             steps=steps, assumptions=assumptions, sources=sources, is_primary=False)

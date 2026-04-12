@@ -29,9 +29,9 @@ def test_create_company(client):
 def test_create_company_with_round(client):
     resp = client.post("/api/v1/companies", json={
         "name": "Beta Inc",
-        "stage": "series_a_plus",
+        "stage": "series_a",
         "sector": "fintech",
-        "revenue_status": "early_revenue",
+        "revenue_status": "growing_revenue",
         "current_revenue": "5000000",
         "last_round": {
             "date": "2025-06-01",
@@ -52,8 +52,8 @@ def test_list_companies(client):
         "revenue_status": "pre_revenue", "created_by": "Alice",
     })
     client.post("/api/v1/companies", json={
-        "name": "Co 2", "stage": "growth", "sector": "fintech",
-        "revenue_status": "meaningful_revenue", "created_by": "Alice",
+        "name": "Co 2", "stage": "series_c_plus", "sector": "fintech",
+        "revenue_status": "scaled_revenue", "created_by": "Alice",
     })
     resp = client.get("/api/v1/companies")
     assert resp.status_code == 200

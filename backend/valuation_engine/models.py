@@ -7,15 +7,17 @@ from enum import Enum
 class CompanyStage(Enum):
     PRE_SEED = "pre_seed"
     SEED = "seed"
-    SERIES_A_PLUS = "series_a_plus"
-    GROWTH = "growth"
-    MATURE_PRIVATE = "mature_private"
+    SERIES_A = "series_a"
+    SERIES_B = "series_b"
+    SERIES_C_PLUS = "series_c_plus"
+    LATE_PRE_IPO = "late_pre_ipo"
 
 
 class RevenueStatus(Enum):
     PRE_REVENUE = "pre_revenue"
-    EARLY_REVENUE = "early_revenue"
-    MEANINGFUL_REVENUE = "meaningful_revenue"
+    EARLY_REVENUE = "early_revenue"          # < $1M ARR
+    GROWING_REVENUE = "growing_revenue"      # $1M - $10M ARR
+    SCALED_REVENUE = "scaled_revenue"        # > $10M ARR
 
 
 class MethodType(Enum):

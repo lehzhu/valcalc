@@ -35,12 +35,12 @@ db.commit()
 db.refresh(c1)
 run_company_valuation(db, c1, "Demo Auditor")
 
-# Company 2: Early revenue SaaS
+# Company 2: Growing revenue SaaS (Series A, $4.2M ARR)
 c2 = Company(
     name="CloudSecure Pro",
-    stage="series_a_plus",
+    stage="series_a",
     sector="cybersecurity",
-    revenue_status="early_revenue",
+    revenue_status="growing_revenue",
     current_revenue=Decimal("4200000"),
     last_round_date=date(2025, 3, 1),
     last_round_valuation=Decimal("35000000"),
@@ -54,12 +54,12 @@ db.commit()
 db.refresh(c2)
 run_company_valuation(db, c2, "Demo Auditor")
 
-# Company 3: Growth stage with projections
+# Company 3: Series C+ with projections ($18M ARR)
 c3 = Company(
     name="PayFlow",
-    stage="growth",
+    stage="series_c_plus",
     sector="fintech",
-    revenue_status="meaningful_revenue",
+    revenue_status="scaled_revenue",
     current_revenue=Decimal("18000000"),
     last_round_date=date(2024, 11, 1),
     last_round_valuation=Decimal("120000000"),

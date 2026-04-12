@@ -146,13 +146,15 @@ export interface BenchmarkSector {
 export const STAGES = [
   { value: 'pre_seed', label: 'Pre-Seed' },
   { value: 'seed', label: 'Seed' },
-  { value: 'series_a_plus', label: 'Series A+' },
-  { value: 'growth', label: 'Growth' },
-  { value: 'mature_private', label: 'Mature Private' },
+  { value: 'series_a', label: 'Series A' },
+  { value: 'series_b', label: 'Series B' },
+  { value: 'series_c_plus', label: 'Series C+' },
+  { value: 'late_pre_ipo', label: 'Late / Pre-IPO' },
 ] as const
 
 export const REVENUE_STATUSES = [
   { value: 'pre_revenue', label: 'Pre-Revenue' },
-  { value: 'early_revenue', label: 'Early Revenue' },
-  { value: 'meaningful_revenue', label: 'Meaningful Revenue' },
+  { value: 'early_revenue', label: 'Early (<$1M)' },
+  { value: 'growing_revenue', label: 'Growing ($1-10M)' },
+  { value: 'scaled_revenue', label: 'Scaled (>$10M)' },
 ] as const

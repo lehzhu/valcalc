@@ -34,7 +34,7 @@ def test_company_input_minimal():
 def test_company_input_full():
     company = CompanyInput(
         name="Beta Inc",
-        stage=CompanyStage.SERIES_A_PLUS,
+        stage=CompanyStage.SERIES_A,
         sector="fintech",
         revenue_status=RevenueStatus.EARLY_REVENUE,
         current_revenue=Decimal("3400000"),
@@ -90,5 +90,6 @@ def test_method_result_construction():
 
 def test_enum_values():
     assert CompanyStage.PRE_SEED.value == "pre_seed"
-    assert RevenueStatus.MEANINGFUL_REVENUE.value == "meaningful_revenue"
+    assert CompanyStage.SERIES_C_PLUS.value == "series_c_plus"
+    assert RevenueStatus.SCALED_REVENUE.value == "scaled_revenue"
     assert MethodType.LAST_ROUND_ADJUSTED.value == "last_round_adjusted"

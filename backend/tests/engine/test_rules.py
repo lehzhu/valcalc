@@ -36,10 +36,10 @@ def test_pre_revenue_no_round():
 def test_early_revenue_with_benchmarks():
     company = CompanyInput(
         name="Revenue Co",
-        stage=CompanyStage.SERIES_A_PLUS,
+        stage=CompanyStage.SERIES_A,
         sector="b2b_saas",
         revenue_status=RevenueStatus.EARLY_REVENUE,
-        current_revenue=Decimal("3000000"),
+        current_revenue=Decimal("800000"),
     )
     recs = recommend_methods(company)
     primary = [r for r in recs if r.is_primary]
@@ -49,9 +49,9 @@ def test_early_revenue_with_benchmarks():
 def test_revenue_with_round_gets_secondary():
     company = CompanyInput(
         name="Revenue Co",
-        stage=CompanyStage.SERIES_A_PLUS,
+        stage=CompanyStage.SERIES_A,
         sector="b2b_saas",
-        revenue_status=RevenueStatus.EARLY_REVENUE,
+        revenue_status=RevenueStatus.GROWING_REVENUE,
         current_revenue=Decimal("3000000"),
         last_round=FundingRound(date=date(2025, 1, 1), pre_money_valuation=Decimal("20000000"), amount_raised=Decimal("5000000")),
     )
@@ -61,12 +61,12 @@ def test_revenue_with_round_gets_secondary():
     assert MethodType.LAST_ROUND_ADJUSTED in methods
 
 
-def test_growth_with_projections_gets_dcf():
+def test_series_c_with_projections_gets_dcf():
     company = CompanyInput(
         name="Growth Co",
-        stage=CompanyStage.GROWTH,
+        stage=CompanyStage.SERIES_C_PLUS,
         sector="fintech",
-        revenue_status=RevenueStatus.MEANINGFUL_REVENUE,
+        revenue_status=RevenueStatus.SCALED_REVENUE,
         current_revenue=Decimal("20000000"),
         projections=FinancialProjections(periods=[
             ProjectionPeriod(year=2026, revenue=Decimal("30000000"), ebitda=Decimal("5000000")),
@@ -78,6 +78,43 @@ def test_growth_with_projections_gets_dcf():
     assert primary[0].method == MethodType.DCF
     methods = [r.method for r in recs]
     assert MethodType.COMPS in methods
+
+
+def test_series_b_with_projections_gets_comps_primary_dcf_secondary():
+    company = CompanyInput(
+        name="Series B Co",
+        stage=CompanyStage.SERIES_B,
+        sector="b2b_saas",
+        revenue_status=RevenueStatus.GROWING_REVENUE,
+        current_revenue=Decimal("5000000"),
+        projections=FinancialProjections(periods=[
+            ProjectionPeriod(year=2026, revenue=Decimal("8000000"), ebitda=Decimal("1000000")),
+            ProjectionPeriod(year=2027, revenue=Decimal("12000000"), ebitda=Decimal("3000000")),
+        ]),
+    )
+    recs = recommend_methods(company)
+    primary = [r for r in recs if r.is_primary]
+    assert primary[0].method == MethodType.COMPS
+    methods = [r.method for r in recs]
+    assert MethodType.DCF in methods
+
+
+def test_pre_revenue_with_round_and_projections_gets_dcf_secondary():
+    company = CompanyInput(
+        name="Pre-Rev Projections Co",
+        stage=CompanyStage.SEED,
+        sector="ai_ml",
+        revenue_status=RevenueStatus.PRE_REVENUE,
+        last_round=FundingRound(date=date(2025, 6, 1), pre_money_valuation=Decimal("10000000"), amount_raised=Decimal("3000000")),
+        projections=FinancialProjections(periods=[
+            ProjectionPeriod(year=2026, revenue=Decimal("500000"), ebitda=Decimal("100000")),
+            ProjectionPeriod(year=2027, revenue=Decimal("2000000"), ebitda=Decimal("500000")),
+        ]),
+    )
+    recs = recommend_methods(company)
+    assert recs[0].method == MethodType.LAST_ROUND_ADJUSTED
+    methods = [r.method for r in recs]
+    assert MethodType.DCF in methods
 
 
 def test_recommendations_have_rationales():

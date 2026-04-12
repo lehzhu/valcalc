@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
-from valuation_engine.models import CompanyInput, CompanyStage, MethodResult, MethodType, ComputationStep, Assumption, Source
+from valuation_engine.models import CompanyInput, CompanyStage, RevenueStatus, MethodResult, MethodType, ComputationStep, Assumption, Source
 
 def _format_currency(value: Decimal) -> str:
     if abs(value) >= 1_000_000_000: return f"${value / 1_000_000_000:.1f}B"
@@ -8,9 +8,17 @@ def _format_currency(value: Decimal) -> str:
     if abs(value) >= 1_000: return f"${value / 1_000:.0f}K"
     return f"${value:.0f}"
 
-_DEFAULT_DISCOUNT_RATES = {
-    CompanyStage.PRE_SEED: 0.50, CompanyStage.SEED: 0.45, CompanyStage.SERIES_A_PLUS: 0.35,
-    CompanyStage.GROWTH: 0.22, CompanyStage.MATURE_PRIVATE: 0.15,
+_BASE_DISCOUNT_RATES = {
+    CompanyStage.PRE_SEED: 0.55, CompanyStage.SEED: 0.45,
+    CompanyStage.SERIES_A: 0.35, CompanyStage.SERIES_B: 0.28,
+    CompanyStage.SERIES_C_PLUS: 0.22, CompanyStage.LATE_PRE_IPO: 0.15,
+}
+
+_REVENUE_WACC_ADJUSTMENT = {
+    RevenueStatus.PRE_REVENUE: 0.05,
+    RevenueStatus.EARLY_REVENUE: 0.03,
+    RevenueStatus.GROWING_REVENUE: 0.0,
+    RevenueStatus.SCALED_REVENUE: -0.02,
 }
 EBITDA_TO_FCF = Decimal("0.75")
 TERMINAL_GROWTH_RATE = Decimal("0.03")
@@ -26,8 +34,13 @@ class DiscountedCashFlow:
             discount_rate = Decimal(str(projections.discount_rate))
             rate_source = "User-supplied"
         else:
-            discount_rate = Decimal(str(_DEFAULT_DISCOUNT_RATES.get(company.stage, 0.25)))
-            rate_source = f"Default for {company.stage.value} stage"
+            base_rate = Decimal(str(_BASE_DISCOUNT_RATES.get(company.stage, 0.25)))
+            rev_adj = Decimal(str(_REVENUE_WACC_ADJUSTMENT.get(company.revenue_status, 0.0)))
+            discount_rate = base_rate + rev_adj
+            rate_parts = [f"Base {base_rate:.0%} for {company.stage.value} stage"]
+            if rev_adj != 0:
+                rate_parts.append(f"{rev_adj:+.0%} for {company.revenue_status.value.replace('_', ' ')}")
+            rate_source = ", ".join(rate_parts)
 
         assumptions.extend([
             Assumption(name="Discount rate (WACC)", value=f"{discount_rate:.0%}", rationale=rate_source, overrideable=True),
