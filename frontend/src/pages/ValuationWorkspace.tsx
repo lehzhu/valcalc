@@ -22,7 +22,23 @@ function formatCurrency(value: string | number): string {
   return `$${num.toFixed(0)}`
 }
 
+const LABEL_OVERRIDES: Record<string, string> = {
+  ai_ml: 'AI / ML',
+  series_a_plus: 'Series A+',
+  pre_seed: 'Pre-Seed',
+  mature_private: 'Mature Private',
+  b2b_saas: 'B2B SaaS',
+  healthcare_biotech: 'Healthcare / Biotech',
+  hardware_iot: 'Hardware / IoT',
+  ecommerce_marketplace: 'E-commerce / Marketplace',
+  climate_cleantech: 'Climate / Clean Tech',
+  pre_revenue: 'Pre-Revenue',
+  early_revenue: 'Early Revenue',
+  meaningful_revenue: 'Meaningful Revenue',
+}
+
 function formatLabel(s: string): string {
+  if (LABEL_OVERRIDES[s]) return LABEL_OVERRIDES[s]
   return s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 

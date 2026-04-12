@@ -82,8 +82,8 @@ def update_company(company_id: UUID, body: CompanyUpdate, db: Session = Depends(
         update_data.pop("last_round")
 
     if "projections" in update_data and update_data["projections"] is not None:
-        proj = update_data.pop("projections")
-        company.projections = proj
+        update_data.pop("projections")
+        company.projections = body.projections.model_dump(mode="json")
     elif "projections" in update_data:
         update_data.pop("projections")
 
