@@ -26,7 +26,7 @@ export default function NewValuation() {
   const [step, setStep] = useState(0)
   const [sectors, setSectors] = useState<BenchmarkSector[]>([])
   const [submitting, setSubmitting] = useState(false)
-  const { register, watch, handleSubmit, setValue, getValues } = useForm<FormData>({
+  const { register, watch, handleSubmit } = useForm<FormData>({
     defaultValues: {
       stage: 'seed',
       revenue_status: 'pre_revenue',
@@ -45,7 +45,7 @@ export default function NewValuation() {
 
   useEffect(() => { listSectors().then(setSectors) }, [])
 
-  const activeSteps = STEPS.filter((s, i) => {
+  const activeSteps = STEPS.filter((_s, i) => {
     if (i === 1) return true
     if (i === 2) return !isPreRevenue
     return true

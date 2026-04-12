@@ -13,7 +13,7 @@ export default function ValueTrendLine({ valuations }: { valuations: ValuationLi
         <LineChart data={data} margin={{ left: 10, right: 20 }}>
           <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
           <YAxis tickFormatter={formatTick} tick={{ fontSize: 11, fill: '#94a3b8' }} />
-          <Tooltip formatter={(v: number) => formatTick(v)} labelFormatter={(label: string, payload: any[]) => payload[0]?.payload?.date || label} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
+          <Tooltip formatter={(v) => formatTick(Number(v))} labelFormatter={(_label, payload) => (payload as any[])[0]?.payload?.date || String(_label)} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
           <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} dot={{ fill: '#4f46e5', r: 4 }} activeDot={{ fill: '#4f46e5', r: 6 }} />
         </LineChart>
       </ResponsiveContainer>

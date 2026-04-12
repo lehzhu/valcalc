@@ -1,7 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts'
 import type { ComputationStep } from '../types'
 
-export default function WaterfallChart({ steps, finalValue }: { steps: ComputationStep[]; finalValue: number }) {
+export default function WaterfallChart({ steps }: { steps: ComputationStep[] }) {
   if (steps.length < 2) return null
   const data: { name: string; value: number; fill: string }[] = []
   let running = 0
@@ -21,7 +21,7 @@ export default function WaterfallChart({ steps, finalValue }: { steps: Computati
         <BarChart data={data} margin={{ left: 10, right: 20 }}>
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={0} />
           <YAxis tickFormatter={(v: number) => `$${v.toFixed(0)}M`} tick={{ fontSize: 11, fill: '#94a3b8' }} />
-          <Tooltip formatter={(v: number) => `$${v.toFixed(1)}M`} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
+          <Tooltip formatter={(v) => `$${Number(v).toFixed(1)}M`} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
           <ReferenceLine y={0} stroke="#e2e8f0" />
           <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>{data.map((d, i) => <Cell key={i} fill={d.fill} />)}</Bar>
         </BarChart>
