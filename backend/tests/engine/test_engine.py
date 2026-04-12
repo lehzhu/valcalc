@@ -2,10 +2,10 @@ from datetime import date
 from decimal import Decimal
 
 from valuation_engine.models import (
-    CompanyInput, CompanyStage, RevenueStatus, MethodType, ConfidenceLevel,
+    CompanyInput, CompanyStage, RevenueStatus, MethodType,
     FundingRound, FinancialProjections, ProjectionPeriod,
 )
-from valuation_engine.engine import run_valuation
+from valuation_engine.engine import run_valuation, run_single_method
 
 
 def test_pre_revenue_company():
@@ -42,7 +42,6 @@ def test_revenue_company_with_comps():
     result = run_valuation(company, valuation_date=date(2026, 1, 1))
 
     assert result.primary_method == MethodType.COMPS
-    assert result.data_completeness > 0.5
 
 
 def test_growth_company_with_dcf():
@@ -62,7 +61,6 @@ def test_growth_company_with_dcf():
 
     assert result.primary_method == MethodType.DCF
     assert len(result.method_results) >= 2  # DCF + Comps at minimum
-    assert result.confidence in (ConfidenceLevel.HIGH, ConfidenceLevel.MEDIUM)
 
 
 def test_no_data_falls_back_to_manual():
@@ -76,7 +74,6 @@ def test_no_data_falls_back_to_manual():
 
     assert result.primary_method == MethodType.MANUAL
     assert result.fair_value == Decimal("0")
-    assert result.confidence == ConfidenceLevel.LOW
 
 
 def test_audit_trail_completeness():
@@ -101,3 +98,33 @@ def test_audit_trail_completeness():
     assert len(trail.method_results) >= 1
     assert trail.engine_version == "0.1.0"
     assert trail.timestamp is not None
+
+
+def test_run_single_method_dcf():
+    company = CompanyInput(
+        name="DCF Test",
+        stage=CompanyStage.GROWTH,
+        sector="fintech",
+        revenue_status=RevenueStatus.MEANINGFUL_REVENUE,
+        current_revenue=Decimal("20000000"),
+        projections=FinancialProjections(periods=[
+            ProjectionPeriod(year=2026, revenue=Decimal("30000000"), ebitda=Decimal("5000000")),
+            ProjectionPeriod(year=2027, revenue=Decimal("42000000"), ebitda=Decimal("10000000")),
+            ProjectionPeriod(year=2028, revenue=Decimal("55000000"), ebitda=Decimal("16000000")),
+        ]),
+    )
+    result = run_single_method(MethodType.DCF, company, valuation_date=date(2026, 1, 1))
+    assert result is not None
+    assert result.method == MethodType.DCF
+    assert result.value > 0
+
+
+def test_run_single_method_insufficient_data():
+    company = CompanyInput(
+        name="No Data",
+        stage=CompanyStage.SEED,
+        sector="ai_ml",
+        revenue_status=RevenueStatus.PRE_REVENUE,
+    )
+    result = run_single_method(MethodType.DCF, company)
+    assert result is None

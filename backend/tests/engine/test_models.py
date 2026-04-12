@@ -6,7 +6,6 @@ from valuation_engine.models import (
     CompanyStage,
     RevenueStatus,
     MethodType,
-    ConfidenceLevel,
     FundingRound,
     ProjectionPeriod,
     FinancialProjections,
@@ -93,4 +92,3 @@ def test_enum_values():
     assert CompanyStage.PRE_SEED.value == "pre_seed"
     assert RevenueStatus.MEANINGFUL_REVENUE.value == "meaningful_revenue"
     assert MethodType.LAST_ROUND_ADJUSTED.value == "last_round_adjusted"
-    assert ConfidenceLevel.HIGH.value == "high"

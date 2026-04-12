@@ -25,12 +25,6 @@ class MethodType(Enum):
     MANUAL = "manual"
 
 
-class ConfidenceLevel(Enum):
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-
-
 @dataclass
 class FundingRound:
     date: date
@@ -127,8 +121,6 @@ class ValuationResult:
     fair_value: Decimal
     fair_value_low: Decimal
     fair_value_high: Decimal
-    confidence: ConfidenceLevel
-    data_completeness: float
     explanation: str
     method_results: list[MethodResult]
     audit_trail: AuditTrail

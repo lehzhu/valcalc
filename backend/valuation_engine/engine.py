@@ -8,7 +8,6 @@ from valuation_engine.rules import recommend_methods
 from valuation_engine.methods.last_round import LastRoundAdjusted
 from valuation_engine.methods.comps import ComparableCompanyMultiples
 from valuation_engine.methods.dcf import DiscountedCashFlow
-from valuation_engine.confidence import compute_completeness, compute_confidence
 from valuation_engine.explanation import generate_explanation
 from valuation_engine.audit_trail import build_audit_trail
 
@@ -51,24 +50,18 @@ def run_valuation(company: CompanyInput, valuation_date: date | None = None) -> 
         )
         method_results = [primary]
 
-    # Step 4: Compute confidence and completeness
-    completeness = compute_completeness(company)
-    confidence = compute_confidence(completeness, primary.method)
-
-    # Step 5: Build key inputs for explanation
+    # Step 4: Build key inputs for explanation
     key_inputs = _extract_key_inputs(primary, company)
 
-    # Step 6: Generate explanation
+    # Step 5: Generate explanation
     explanation = generate_explanation(
         method=primary.method,
         fair_value=primary.value,
         sector=company.sector,
-        confidence=confidence,
-        data_completeness=completeness,
         key_inputs=key_inputs,
     )
 
-    # Step 7: Build audit trail
+    # Step 6: Build audit trail
     audit_trail = build_audit_trail(
         company=company,
         recommendations=recommendations,
@@ -80,12 +73,21 @@ def run_valuation(company: CompanyInput, valuation_date: date | None = None) -> 
         fair_value=primary.value,
         fair_value_low=primary.value_low,
         fair_value_high=primary.value_high,
-        confidence=confidence,
-        data_completeness=completeness,
         explanation=explanation,
         method_results=method_results,
         audit_trail=audit_trail,
     )
+
+
+def run_single_method(
+    method: MethodType,
+    company: CompanyInput,
+    valuation_date: date | None = None,
+) -> MethodResult | None:
+    """Run a single valuation method. Returns None if prerequisites aren't met."""
+    if valuation_date is None:
+        valuation_date = date.today()
+    return _run_method(method, company, valuation_date)
 
 
 def _run_method(method_type: MethodType, company: CompanyInput, valuation_date: date) -> MethodResult | None:

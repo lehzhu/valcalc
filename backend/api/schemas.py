@@ -97,6 +97,19 @@ class ValuationRunRequest(BaseModel):
     created_by: str
     valuation_date: date | None = None
 
+class MethodRunRequest(BaseModel):
+    valuation_date: date | None = None
+
+class MethodResultOut(BaseModel):
+    method: str
+    value: Decimal
+    value_low: Decimal
+    value_high: Decimal
+    steps: list[dict]
+    assumptions: list[dict]
+    sources: list[dict]
+    is_primary: bool = False
+
 class OverrideRequest(BaseModel):
     fair_value: Decimal
     justification: str
@@ -110,8 +123,6 @@ class ValuationOut(BaseModel):
     fair_value: Decimal
     fair_value_low: Decimal
     fair_value_high: Decimal
-    confidence: str
-    data_completeness: float
     explanation: str
     method_results: list[dict]
     audit_trail: dict
@@ -126,7 +137,6 @@ class ValuationListItem(BaseModel):
     version: int
     primary_method: str
     fair_value: Decimal
-    confidence: str
     created_by: str
     created_at: datetime
 

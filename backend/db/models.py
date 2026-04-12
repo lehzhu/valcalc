@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 from decimal import Decimal
 
-from sqlalchemy import String, Text, Numeric, Float, Integer, Date, DateTime, JSON, Uuid, ForeignKey
+from sqlalchemy import String, Text, Numeric, Integer, Date, DateTime, JSON, Uuid, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -52,8 +52,6 @@ class Valuation(Base):
     fair_value: Mapped[Decimal] = mapped_column(Numeric(20, 2))
     fair_value_low: Mapped[Decimal] = mapped_column(Numeric(20, 2))
     fair_value_high: Mapped[Decimal] = mapped_column(Numeric(20, 2))
-    confidence: Mapped[str] = mapped_column(String(20))
-    data_completeness: Mapped[float] = mapped_column(Float)
     explanation: Mapped[str] = mapped_column(Text)
     method_results: Mapped[dict] = mapped_column(JSON)
     audit_trail: Mapped[dict] = mapped_column(JSON)

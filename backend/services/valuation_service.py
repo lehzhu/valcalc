@@ -115,8 +115,6 @@ def run_company_valuation(
         fair_value=result.fair_value,
         fair_value_low=result.fair_value_low,
         fair_value_high=result.fair_value_high,
-        confidence=result.confidence.value,
-        data_completeness=result.data_completeness,
         explanation=result.explanation,
         method_results=_serialize_method_results(result.method_results),
         audit_trail=_serialize_audit_trail(result.audit_trail),
