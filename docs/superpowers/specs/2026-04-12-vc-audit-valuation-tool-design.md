@@ -428,7 +428,7 @@ Base URL: `/api/v1`
 ### Tech Stack
 
 - Vite + React + TypeScript
-- Tailwind CSS for styling
+- Tailwind CSS for styling (light theme, modern SaaS aesthetic — reference: Hex, Sapien.ai)
 - Recharts for charts (range bars, waterfall, comparison)
 - React Router for navigation
 - React Hook Form for the guided input form
