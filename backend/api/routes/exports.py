@@ -63,36 +63,60 @@ def _build_pdf_html(valuation, company) -> str:
         steps_html = ""
         for step in mr.get("steps", []):
             inputs_str = ", ".join(f"{k}: {v}" for k, v in step.get("inputs", {}).items())
-            steps_html += f"<tr><td>{step['description']}</td><td>{step['formula']}</td><td>{inputs_str}</td><td>{step['output']}</td></tr>"
+            steps_html += f"<tr><td>{step['description']}</td><td><code>{step['formula']}</code></td><td>{inputs_str}</td><td><strong>{step['output']}</strong></td></tr>"
+        assumptions_html = ""
+        for a in mr.get("assumptions", []):
+            assumptions_html += f"<tr><td>{a['name']}</td><td>{a['value']}</td><td>{a.get('rationale', '')}</td><td>{a.get('source', '')}</td></tr>"
+        method_label = mr['method'].replace('_', ' ').title()
+        primary_tag = ' <span class="primary-tag">PRIMARY</span>' if mr.get('is_primary') else ''
         methods_html += f"""
-        <h3>{mr['method'].replace('_', ' ').title()}{' (Primary)' if mr.get('is_primary') else ''}</h3>
-        <table><tr><th>Step</th><th>Formula</th><th>Inputs</th><th>Output</th></tr>{steps_html}</table>
+        <h3>{method_label}{primary_tag}</h3>
+        <table><tr><th>Step</th><th>Formula</th><th>Inputs</th><th>Result</th></tr>{steps_html}</table>
         """
+        if assumptions_html:
+            methods_html += f"""
+            <h4>Assumptions</h4>
+            <table><tr><th>Assumption</th><th>Value</th><th>Rationale</th><th>Source</th></tr>{assumptions_html}</table>
+            """
+
+    # Method weights if present
+    weights_html = ""
+    if trail.get("method_weights"):
+        weights_items = ", ".join(f"{k.replace('_', ' ').title()}: {v:.0%}" for k, v in trail["method_weights"].items() if v > 0)
+        weights_html = f"<p><strong>Method Weights:</strong> {weights_items}</p>"
 
     return f"""
     <html>
     <head><style>
-        body {{ font-family: Inter, Helvetica, Arial, sans-serif; color: #1a1a2e; padding: 40px; font-size: 12px; }}
-        h1 {{ color: #1a1a2e; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }}
-        h2 {{ color: #475569; margin-top: 24px; }}
-        h3 {{ color: #4f46e5; }}
-        table {{ border-collapse: collapse; width: 100%; margin: 12px 0; }}
-        th, td {{ border: 1px solid #e2e8f0; padding: 6px 10px; text-align: left; }}
-        th {{ background: #f8fafc; font-weight: 600; }}
-        .value {{ font-size: 28px; font-weight: 700; color: #4f46e5; }}
-        .meta {{ color: #64748b; font-size: 11px; }}
+        @page {{ size: A4; margin: 30px 40px; }}
+        body {{ font-family: Inter, Helvetica, Arial, sans-serif; color: #1a1a2e; font-size: 11px; line-height: 1.5; }}
+        h1 {{ color: #1a1a2e; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; font-size: 20px; }}
+        h2 {{ color: #475569; margin-top: 20px; font-size: 14px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }}
+        h3 {{ color: #4f46e5; font-size: 12px; margin-top: 16px; }}
+        h4 {{ color: #64748b; font-size: 11px; margin: 8px 0 4px; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10px; }}
+        th, td {{ border: 1px solid #e2e8f0; padding: 4px 8px; text-align: left; }}
+        th {{ background: #f8fafc; font-weight: 600; color: #475569; }}
+        code {{ font-size: 9px; color: #64748b; }}
+        .value {{ font-size: 28px; font-weight: 700; color: #4f46e5; margin: 4px 0; }}
+        .range {{ color: #64748b; font-size: 12px; }}
+        .meta {{ color: #64748b; font-size: 10px; }}
+        .primary-tag {{ background: #4f46e5; color: white; padding: 1px 6px; border-radius: 3px; font-size: 9px; }}
+        .summary-box {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 12px 0; }}
     </style></head>
     <body>
-        <h1>Valuation Report — {company.name}</h1>
-        <p class="meta">Version {valuation.version} | {valuation.created_at.strftime('%Y-%m-%d %H:%M')} | By {valuation.created_by}</p>
+        <h1>Valuation Memo &mdash; {company.name}</h1>
+        <p class="meta">Version {valuation.version} &bull; {valuation.created_at.strftime('%B %d, %Y')} &bull; Prepared by {valuation.created_by}</p>
 
-        <h2>Summary</h2>
-        <p class="value">${valuation.fair_value:,.0f}</p>
-        <p>Range: ${valuation.fair_value_low:,.0f} – ${valuation.fair_value_high:,.0f}</p>
-        <p>Method: {valuation.primary_method.replace('_', ' ').title()} | Confidence: {valuation.confidence.title()} | Data Completeness: {valuation.data_completeness:.0%}</p>
-        <p>{valuation.explanation}</p>
+        <div class="summary-box">
+            <p class="value">${valuation.fair_value:,.0f}</p>
+            <p class="range">Range: ${valuation.fair_value_low:,.0f} &ndash; ${valuation.fair_value_high:,.0f}</p>
+            <p style="margin-top: 8px;">Method: {valuation.primary_method.replace('_', ' ').title()}</p>
+            <p style="margin-top: 4px; color: #475569;">{valuation.explanation}</p>
+        </div>
 
         <h2>Methodology</h2>
+        {weights_html}
         {methods_html}
 
         <h2>Audit Trail</h2>
@@ -102,7 +126,8 @@ def _build_pdf_html(valuation, company) -> str:
 
         <h3>Input Snapshot</h3>
         <table>
-        {"".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in trail.get('input_snapshot', {}).items())}
+        <tr><th>Field</th><th>Value</th></tr>
+        {"".join(f"<tr><td>{k.replace('_', ' ').title()}</td><td>{v if v is not None else '—'}</td></tr>" for k, v in trail.get('input_snapshot', {}).items())}
         </table>
     </body>
     </html>

@@ -95,10 +95,31 @@ def run_company_valuation(
     company: Company,
     created_by: str,
     valuation_date: date | None = None,
+    method_weights: dict[str, float] | None = None,
 ) -> Valuation:
     """Run a valuation for a company and persist the result."""
     engine_input = _company_to_engine_input(company)
     result = run_valuation(engine_input, valuation_date=valuation_date)
+
+    # Apply method weighting if provided
+    fair_value = result.fair_value
+    fair_value_low = result.fair_value_low
+    fair_value_high = result.fair_value_high
+    explanation = result.explanation
+    primary_method = result.primary_method.value
+
+    if method_weights and len(result.method_results) > 1:
+        weighted_val, weighted_low, weighted_high = _apply_weights(result.method_results, method_weights)
+        if weighted_val is not None:
+            fair_value = weighted_val
+            fair_value_low = weighted_low
+            fair_value_high = weighted_high
+            primary_method = "weighted_blend"
+            weight_desc = ", ".join(
+                f"{m.method.value.replace('_', ' ').title()} ({method_weights.get(m.method.value, 0):.0%})"
+                for m in result.method_results if method_weights.get(m.method.value, 0) > 0
+            )
+            explanation = f"Weighted blend of {weight_desc}. Fair value: ${fair_value:,.0f}."
 
     latest = (
         db.query(Valuation)
@@ -108,22 +129,54 @@ def run_company_valuation(
     )
     version = (latest.version + 1) if latest else 1
 
+    audit_trail = _serialize_audit_trail(result.audit_trail)
+    if method_weights:
+        audit_trail["method_weights"] = method_weights
+
     valuation = Valuation(
         company_id=company.id,
         version=version,
-        primary_method=result.primary_method.value,
-        fair_value=result.fair_value,
-        fair_value_low=result.fair_value_low,
-        fair_value_high=result.fair_value_high,
-        explanation=result.explanation,
+        primary_method=primary_method,
+        fair_value=fair_value,
+        fair_value_low=fair_value_low,
+        fair_value_high=fair_value_high,
+        explanation=explanation,
         method_results=_serialize_method_results(result.method_results),
-        audit_trail=_serialize_audit_trail(result.audit_trail),
+        audit_trail=audit_trail,
         created_by=created_by,
     )
     db.add(valuation)
     db.commit()
     db.refresh(valuation)
     return valuation
+
+
+def _apply_weights(
+    method_results: list[MethodResult],
+    weights: dict[str, float],
+) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+    """Compute weighted average across method results. Returns (value, low, high) or Nones."""
+    total_weight = Decimal("0")
+    weighted_sum = Decimal("0")
+    weighted_low = Decimal("0")
+    weighted_high = Decimal("0")
+
+    for mr in method_results:
+        w = Decimal(str(weights.get(mr.method.value, 0)))
+        if w > 0:
+            total_weight += w
+            weighted_sum += mr.value * w
+            weighted_low += mr.value_low * w
+            weighted_high += mr.value_high * w
+
+    if total_weight == 0:
+        return None, None, None
+
+    return (
+        (weighted_sum / total_weight).quantize(Decimal("1")),
+        (weighted_low / total_weight).quantize(Decimal("1")),
+        (weighted_high / total_weight).quantize(Decimal("1")),
+    )
 
 
 def apply_override(

@@ -14,7 +14,8 @@ class LastRoundAdjusted:
     DECAY_FREE_MONTHS = 12
     RANGE_SPREAD = Decimal("0.15")
 
-    def compute(self, company: CompanyInput, valuation_date: date) -> MethodResult:
+    def compute(self, company: CompanyInput, valuation_date: date, overrides: dict | None = None) -> MethodResult:
+        overrides = overrides or {}
         last_round = company.last_round
         steps, assumptions, sources = [], [], []
 
@@ -25,6 +26,7 @@ class LastRoundAdjusted:
             output=_format_currency(post_money)))
 
         # Step 2: Time adjustment
+        decay_rate = Decimal(str(overrides.get("time_decay_rate", self.QUARTERLY_DECAY_RATE)))
         months_elapsed = (valuation_date.year - last_round.date.year) * 12 + (valuation_date.month - last_round.date.month)
         if months_elapsed <= self.DECAY_FREE_MONTHS:
             time_factor = Decimal("1.0")
@@ -32,9 +34,9 @@ class LastRoundAdjusted:
         else:
             decay_months = months_elapsed - self.DECAY_FREE_MONTHS
             decay_quarters = Decimal(str(decay_months)) / Decimal("3")
-            total_decay = self.QUARTERLY_DECAY_RATE * decay_quarters
+            total_decay = decay_rate * decay_quarters
             time_factor = max(Decimal("1.0") - total_decay, Decimal("0.5"))
-            time_rationale = f"Round is {months_elapsed} months old, {decay_quarters.quantize(Decimal('0.1'))} quarters of decay at {self.QUARTERLY_DECAY_RATE * 100}% per quarter"
+            time_rationale = f"Round is {months_elapsed} months old, {decay_quarters.quantize(Decimal('0.1'))} quarters of decay at {decay_rate * 100}% per quarter"
 
         time_adjusted = (post_money * time_factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         steps.append(ComputationStep(description="Apply time adjustment", formula="post_money × time_factor",
@@ -43,14 +45,18 @@ class LastRoundAdjusted:
         assumptions.append(Assumption(name="Time decay rate", value=f"-{self.QUARTERLY_DECAY_RATE * 100}% per quarter after {self.DECAY_FREE_MONTHS} months", rationale=time_rationale, overrideable=True))
 
         # Step 3: Market/sector adjustment
-        try:
-            sector_data = get_sector_benchmarks(company.sector)
-            trend_factor = Decimal(str(sector_data["sector_trend_factor"]))
-            benchmark_version = get_benchmark_version()
-            sources.append(Source(name=f"Sector Benchmark - {sector_data.get('display_name', company.sector)}", version=benchmark_version, effective_date=date.fromisoformat("2025-03-31")))
-        except KeyError:
-            trend_factor = Decimal("0")
-            benchmark_version = "N/A"
+        if "sector_trend" in overrides:
+            trend_factor = Decimal(str(overrides["sector_trend"]))
+            benchmark_version = "Auditor override"
+        else:
+            try:
+                sector_data = get_sector_benchmarks(company.sector)
+                trend_factor = Decimal(str(sector_data["sector_trend_factor"]))
+                benchmark_version = get_benchmark_version()
+                sources.append(Source(name=f"Sector Benchmark - {sector_data.get('display_name', company.sector)}", version=benchmark_version, effective_date=date.fromisoformat("2025-03-31")))
+            except KeyError:
+                trend_factor = Decimal("0")
+                benchmark_version = "N/A"
 
         market_factor = Decimal("1") + trend_factor
         final_value = (time_adjusted * market_factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)

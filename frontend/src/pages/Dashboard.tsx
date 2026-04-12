@@ -9,6 +9,7 @@ const METHOD_LABELS: Record<string, string> = {
   comps: 'Comps',
   dcf: 'DCF',
   manual: 'Manual',
+  weighted_blend: 'Weighted Blend',
 }
 
 function formatCurrency(value: string | undefined): string {

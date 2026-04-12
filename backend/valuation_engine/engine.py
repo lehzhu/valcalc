@@ -83,24 +83,25 @@ def run_single_method(
     method: MethodType,
     company: CompanyInput,
     valuation_date: date | None = None,
+    overrides: dict | None = None,
 ) -> MethodResult | None:
     """Run a single valuation method. Returns None if prerequisites aren't met."""
     if valuation_date is None:
         valuation_date = date.today()
-    return _run_method(method, company, valuation_date)
+    return _run_method(method, company, valuation_date, overrides=overrides)
 
 
-def _run_method(method_type: MethodType, company: CompanyInput, valuation_date: date) -> MethodResult | None:
+def _run_method(method_type: MethodType, company: CompanyInput, valuation_date: date, overrides: dict | None = None) -> MethodResult | None:
     """Run a single valuation method. Returns None if prerequisites aren't met."""
     if method_type == MethodType.LAST_ROUND_ADJUSTED:
         if company.last_round is None:
             return None
-        return LastRoundAdjusted().compute(company, valuation_date)
+        return LastRoundAdjusted().compute(company, valuation_date, overrides=overrides)
 
     if method_type == MethodType.COMPS:
         if company.current_revenue is None or company.current_revenue <= 0:
             return None
-        return ComparableCompanyMultiples().compute(company, valuation_date)
+        return ComparableCompanyMultiples().compute(company, valuation_date, overrides=overrides)
 
     if method_type == MethodType.DCF:
         if (
@@ -109,7 +110,7 @@ def _run_method(method_type: MethodType, company: CompanyInput, valuation_date: 
             or not any(p.ebitda and p.ebitda > 0 for p in company.projections.periods)
         ):
             return None
-        return DiscountedCashFlow().compute(company, valuation_date)
+        return DiscountedCashFlow().compute(company, valuation_date, overrides=overrides)
 
     if method_type == MethodType.MANUAL:
         return None  # Manual is handled via override endpoint, not auto-run

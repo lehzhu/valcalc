@@ -96,9 +96,11 @@ class CompanyListItem(BaseModel):
 class ValuationRunRequest(BaseModel):
     created_by: str
     valuation_date: date | None = None
+    method_weights: dict[str, float] | None = None
 
 class MethodRunRequest(BaseModel):
     valuation_date: date | None = None
+    overrides: dict[str, float] | None = None
 
 class MethodResultOut(BaseModel):
     method: str
@@ -109,6 +111,18 @@ class MethodResultOut(BaseModel):
     assumptions: list[dict]
     sources: list[dict]
     is_primary: bool = False
+
+class SensitivityRequest(BaseModel):
+    valuation_date: date | None = None
+    wacc_steps: list[float] | None = None
+    tg_steps: list[float] | None = None
+
+class SensitivityOut(BaseModel):
+    wacc_values: list[float]
+    tg_values: list[float]
+    grid: list[list[str]]
+    base_wacc: float
+    base_tg: float
 
 class OverrideRequest(BaseModel):
     fair_value: Decimal

@@ -9,6 +9,7 @@ import ExportMenu from '../components/ExportMenu'
 const METHOD_LABELS: Record<string, string> = {
   last_round_adjusted: 'Last Round Adjusted', comps: 'Comparable Multiples',
   dcf: 'Discounted Cash Flow', manual: 'Manual Override',
+  weighted_blend: 'Weighted Blend',
 }
 
 function formatCurrency(value: string): string {

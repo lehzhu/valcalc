@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { getCompany, updateCompany, runMethod, runValuation, listSectors } from '../api/client'
+import { getCompany, updateCompany, runMethod, runValuation, listSectors, runSensitivity } from '../api/client'
+import type { SensitivityResult } from '../api/client'
 import type { Company, MethodResultOut, BenchmarkSector, FundingRound, ProjectionPeriod } from '../types'
 import RangeBar from '../components/RangeBar'
+import SensitivityTable from '../components/SensitivityTable'
+import WeightingPanel from '../components/WeightingPanel'
 import { formatLabel } from '../utils/labels'
 
 const METHOD_TABS = [
@@ -23,12 +26,75 @@ function formatCurrency(value: string | number): string {
   return `$${num.toFixed(0)}`
 }
 
+/* ------------------------------------------------------------------ */
+/*  Override-aware assumption display                                  */
+/* ------------------------------------------------------------------ */
+function parseAssumptionValue(value: string): number | null {
+  // Try to extract a numeric value from assumption strings like "20%", "-5%", "8.2x", "0.75"
+  const pctMatch = value.match(/^-?(\d+(?:\.\d+)?)%$/)
+  if (pctMatch) return parseFloat(pctMatch[1]) / 100
+  const negPctMatch = value.match(/^-(\d+(?:\.\d+)?)%$/)
+  if (negPctMatch) return parseFloat(negPctMatch[1]) / 100
+  const xMatch = value.match(/^(\d+(?:\.\d+)?)x$/)
+  if (xMatch) return parseFloat(xMatch[1])
+  const num = parseFloat(value)
+  return isNaN(num) ? null : num
+}
+
+function getOverrideKey(assumptionName: string): string | null {
+  const map: Record<string, string> = {
+    'Discount rate (WACC)': 'discount_rate',
+    'Terminal growth rate': 'terminal_growth_rate',
+    'EBITDA-to-FCF conversion': 'ebitda_to_fcf',
+    'Revenue multiple': 'revenue_multiple',
+    'DLOM (illiquidity discount)': 'dlom',
+    'Time decay rate': 'time_decay_rate',
+    'Sector trend adjustment': 'sector_trend',
+  }
+  return map[assumptionName] || null
+}
+
 
 /* ------------------------------------------------------------------ */
 /*  Result display (shared across tabs)                               */
 /* ------------------------------------------------------------------ */
-function MethodResultDisplay({ result, debug }: { result: MethodResultOut; debug: boolean }) {
+function MethodResultDisplay({
+  result, debug, overrides, onOverrideChange,
+}: {
+  result: MethodResultOut
+  debug: boolean
+  overrides: Record<string, number>
+  onOverrideChange: (key: string, value: number) => void
+}) {
   const [stepsOpen, setStepsOpen] = useState(false)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+
+  const startEdit = (name: string, value: string) => {
+    const key = getOverrideKey(name)
+    if (!key) return
+    const num = parseAssumptionValue(value)
+    if (num === null) return
+    setEditingKey(key)
+    // Show as percentage or multiplier depending on context
+    if (value.includes('%')) {
+      setEditValue(String(Math.round(num * 100)))
+    } else if (value.includes('x')) {
+      setEditValue(String(num))
+    } else {
+      setEditValue(String(num))
+    }
+  }
+
+  const commitEdit = (_name: string, originalValue: string) => {
+    if (editingKey === null) return
+    let numValue = parseFloat(editValue)
+    if (isNaN(numValue)) { setEditingKey(null); return }
+    // Convert % to decimal
+    if (originalValue.includes('%')) numValue = numValue / 100
+    onOverrideChange(editingKey, numValue)
+    setEditingKey(null)
+  }
 
   return (
     <div className="mt-6 space-y-4">
@@ -74,22 +140,57 @@ function MethodResultDisplay({ result, debug }: { result: MethodResultOut; debug
         </div>
       )}
 
-      {/* Assumptions */}
+      {/* Assumptions — editable when overrideable */}
       {result.assumptions.length > 0 && (
         <div className="border border-[var(--color-border)] rounded-lg p-4">
-          <h4 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">Assumptions</h4>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-medium text-[var(--color-text-primary)]">Assumptions</h4>
+            {Object.keys(overrides).length > 0 && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+                {Object.keys(overrides).length} override{Object.keys(overrides).length > 1 ? 's' : ''} applied
+              </span>
+            )}
+          </div>
           <div className="space-y-2">
-            {result.assumptions.map((a, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs">
-                <span className="font-medium text-[var(--color-text-secondary)] min-w-[100px]">{a.name}</span>
-                <span className="text-[var(--color-text-primary)]">{a.value}</span>
-                <span className="text-[var(--color-text-tertiary)] flex-1">-- {a.rationale}</span>
-                {a.source && <span className="text-[var(--color-text-tertiary)] italic text-[10px]">{a.source}</span>}
-                {debug && (
-                  <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-100 text-[var(--color-primary)] text-[9px] font-bold cursor-help" title={`Overrideable: ${a.overrideable ? 'Yes' : 'No'}${a.source ? ` | Source: ${a.source}` : ''}`}>i</span>
-                )}
-              </div>
-            ))}
+            {result.assumptions.map((a, i) => {
+              const overrideKey = getOverrideKey(a.name)
+              const isOverridden = overrideKey ? overrideKey in overrides : false
+              const isEditing = editingKey === overrideKey
+              return (
+                <div key={i} className={`flex items-start gap-2 text-xs rounded-md px-1.5 py-1 ${isOverridden ? 'bg-amber-50' : ''}`}>
+                  <span className="font-medium text-[var(--color-text-secondary)] min-w-[120px]">{a.name}</span>
+                  {isEditing ? (
+                    <span className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="any"
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') commitEdit(a.name, a.value); if (e.key === 'Escape') setEditingKey(null) }}
+                        onBlur={() => commitEdit(a.name, a.value)}
+                        className="w-16 px-1.5 py-0.5 rounded border border-[var(--color-primary)] text-xs bg-white focus:outline-none"
+                        autoFocus
+                      />
+                      <span className="text-[var(--color-text-tertiary)]">{a.value.includes('%') ? '%' : a.value.includes('x') ? 'x' : ''}</span>
+                    </span>
+                  ) : (
+                    <span
+                      className={`${a.overrideable ? 'cursor-pointer hover:text-[var(--color-primary)] hover:underline' : ''} ${isOverridden ? 'text-amber-700 font-semibold' : 'text-[var(--color-text-primary)]'}`}
+                      onClick={() => a.overrideable && startEdit(a.name, a.value)}
+                      title={a.overrideable ? 'Click to override' : undefined}
+                    >
+                      {a.value}
+                      {isOverridden && <span className="ml-1 text-[9px] text-amber-600">(override)</span>}
+                    </span>
+                  )}
+                  <span className="text-[var(--color-text-tertiary)] flex-1">-- {a.rationale}</span>
+                  {a.source && <span className="text-[var(--color-text-tertiary)] italic text-[10px]">{a.source}</span>}
+                  {debug && (
+                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-100 text-[var(--color-primary)] text-[9px] font-bold cursor-help" title={`Overrideable: ${a.overrideable ? 'Yes' : 'No'}${a.source ? ` | Source: ${a.source}` : ''}`}>i</span>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -116,8 +217,9 @@ function LastRoundTab({ company, debug, onCompanyUpdate, onResult }: { company: 
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState<MethodResultOut | null>(null)
   const [error, setError] = useState('')
+  const [overrides, setOverrides] = useState<Record<string, number>>({})
 
-  const saveAndRun = async () => {
+  const saveAndRun = async (overrideValues?: Record<string, number>) => {
     setRunning(true)
     setError('')
     try {
@@ -129,7 +231,10 @@ function LastRoundTab({ company, debug, onCompanyUpdate, onResult }: { company: 
       }
       const updated = await updateCompany(company.id, { last_round: lastRound })
       onCompanyUpdate(updated)
-      const res = await runMethod(company.id, 'last_round_adjusted')
+      const activeOverrides = overrideValues ?? overrides
+      const res = await runMethod(company.id, 'last_round_adjusted', {
+        overrides: Object.keys(activeOverrides).length > 0 ? activeOverrides : undefined,
+      })
       setResult(res)
       onResult('last_round_adjusted', res)
     } catch (err) {
@@ -137,6 +242,12 @@ function LastRoundTab({ company, debug, onCompanyUpdate, onResult }: { company: 
     } finally {
       setRunning(false)
     }
+  }
+
+  const handleOverrideChange = (key: string, value: number) => {
+    const newOverrides = { ...overrides, [key]: value }
+    setOverrides(newOverrides)
+    saveAndRun(newOverrides)
   }
 
   const saveInputs = async () => {
@@ -171,13 +282,13 @@ function LastRoundTab({ company, debug, onCompanyUpdate, onResult }: { company: 
         <div><label className={labelClass}>Amount Raised ($)</label><input type="number" value={amountRaised} onChange={e => setAmountRaised(e.target.value)} onBlur={saveInputs} className={inputClass} placeholder="e.g., 10000000" /></div>
       </div>
 
-      <button onClick={saveAndRun} disabled={running || !roundDate || !preMoneyVal}
+      <button onClick={() => saveAndRun()} disabled={running || !roundDate || !preMoneyVal}
         className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
         {running ? 'Running...' : saving ? 'Saving...' : 'Run Last Round'}
       </button>
 
       {error && <p className="mt-3 text-sm text-[var(--color-danger)]">{error}</p>}
-      {result && <MethodResultDisplay result={result} debug={debug} />}
+      {result && <MethodResultDisplay result={result} debug={debug} overrides={overrides} onOverrideChange={handleOverrideChange} />}
     </div>
   )
 }
@@ -191,14 +302,18 @@ function CompsTab({ company, debug, sectors, onCompanyUpdate, onResult }: { comp
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<MethodResultOut | null>(null)
   const [error, setError] = useState('')
+  const [overrides, setOverrides] = useState<Record<string, number>>({})
 
-  const saveAndRun = async () => {
+  const saveAndRun = async (overrideValues?: Record<string, number>) => {
     setRunning(true)
     setError('')
     try {
       const updated = await updateCompany(company.id, { current_revenue: revenue || undefined, sector })
       onCompanyUpdate(updated)
-      const res = await runMethod(company.id, 'comps')
+      const activeOverrides = overrideValues ?? overrides
+      const res = await runMethod(company.id, 'comps', {
+        overrides: Object.keys(activeOverrides).length > 0 ? activeOverrides : undefined,
+      })
       setResult(res)
       onResult('comps', res)
     } catch (err) {
@@ -206,6 +321,12 @@ function CompsTab({ company, debug, sectors, onCompanyUpdate, onResult }: { comp
     } finally {
       setRunning(false)
     }
+  }
+
+  const handleOverrideChange = (key: string, value: number) => {
+    const newOverrides = { ...overrides, [key]: value }
+    setOverrides(newOverrides)
+    saveAndRun(newOverrides)
   }
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm bg-[var(--color-surface)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] focus:border-transparent"
@@ -222,13 +343,13 @@ function CompsTab({ company, debug, sectors, onCompanyUpdate, onResult }: { comp
         </div>
       </div>
 
-      <button onClick={saveAndRun} disabled={running}
+      <button onClick={() => saveAndRun()} disabled={running}
         className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
         {running ? 'Running...' : 'Run Comps'}
       </button>
 
       {error && <p className="mt-3 text-sm text-[var(--color-danger)]">{error}</p>}
-      {result && <MethodResultDisplay result={result} debug={debug} />}
+      {result && <MethodResultDisplay result={result} debug={debug} overrides={overrides} onOverrideChange={handleOverrideChange} />}
     </div>
   )
 }
@@ -259,6 +380,9 @@ function DCFTab({ company, debug, onCompanyUpdate, onResult }: { company: Compan
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<MethodResultOut | null>(null)
   const [error, setError] = useState('')
+  const [overrides, setOverrides] = useState<Record<string, number>>({})
+  const [sensitivity, setSensitivity] = useState<SensitivityResult | null>(null)
+  const [loadingSens, setLoadingSens] = useState(false)
 
   const updateRow = (index: number, field: string, value: string) => {
     setRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
@@ -274,7 +398,7 @@ function DCFTab({ company, debug, onCompanyUpdate, onResult }: { company: Compan
     setRows(prev => prev.filter((_, i) => i !== index))
   }
 
-  const saveAndRun = async () => {
+  const saveAndRun = async (overrideValues?: Record<string, number>) => {
     setRunning(true)
     setError('')
     try {
@@ -289,13 +413,34 @@ function DCFTab({ company, debug, onCompanyUpdate, onResult }: { company: Compan
         auditor_notes: notes || undefined,
       })
       onCompanyUpdate(updated)
-      const res = await runMethod(company.id, 'dcf')
+      const activeOverrides = overrideValues ?? overrides
+      const res = await runMethod(company.id, 'dcf', {
+        overrides: Object.keys(activeOverrides).length > 0 ? activeOverrides : undefined,
+      })
       setResult(res)
       onResult('dcf', res)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to run method')
     } finally {
       setRunning(false)
+    }
+  }
+
+  const handleOverrideChange = (key: string, value: number) => {
+    const newOverrides = { ...overrides, [key]: value }
+    setOverrides(newOverrides)
+    saveAndRun(newOverrides)
+  }
+
+  const loadSensitivity = async () => {
+    setLoadingSens(true)
+    try {
+      const sens = await runSensitivity(company.id)
+      setSensitivity(sens)
+    } catch {
+      /* silent */
+    } finally {
+      setLoadingSens(false)
     }
   }
 
@@ -332,13 +477,28 @@ function DCFTab({ company, debug, onCompanyUpdate, onResult }: { company: Compan
         <textarea value={notes} onChange={e => setNotes(e.target.value)} className={`${inputClass} h-20 resize-none`} placeholder="Additional context..." />
       </div>
 
-      <button onClick={saveAndRun} disabled={running}
-        className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
-        {running ? 'Running...' : 'Run DCF'}
-      </button>
+      <div className="flex gap-2">
+        <button onClick={() => saveAndRun()} disabled={running}
+          className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
+          {running ? 'Running...' : 'Run DCF'}
+        </button>
+        {result && (
+          <button onClick={loadSensitivity} disabled={loadingSens}
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-indigo-50 transition-colors disabled:opacity-40">
+            {loadingSens ? 'Loading...' : sensitivity ? 'Refresh Sensitivity' : 'Sensitivity Analysis'}
+          </button>
+        )}
+      </div>
 
       {error && <p className="mt-3 text-sm text-[var(--color-danger)]">{error}</p>}
-      {result && <MethodResultDisplay result={result} debug={debug} />}
+      {result && <MethodResultDisplay result={result} debug={debug} overrides={overrides} onOverrideChange={handleOverrideChange} />}
+
+      {sensitivity && (
+        <div className="mt-5 border border-[var(--color-border)] rounded-lg p-4">
+          <h4 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">Sensitivity Analysis: WACC vs Terminal Growth</h4>
+          <SensitivityTable data={sensitivity} />
+        </div>
+      )}
     </div>
   )
 }
@@ -402,8 +562,9 @@ export default function ValuationWorkspace() {
   const [loading, setLoading] = useState(true)
   const [savingValuation, setSavingValuation] = useState(false)
 
-  // Track results per method for summary bar
+  // Track results per method for summary bar and weighting
   const [methodResults, setMethodResults] = useState<Partial<Record<string, MethodResultOut>>>({})
+  const [methodWeights, setMethodWeights] = useState<Record<string, number> | null>(null)
 
   useEffect(() => {
     if (!companyId) return
@@ -423,7 +584,10 @@ export default function ValuationWorkspace() {
     setSavingValuation(true)
     try {
       const user = localStorage.getItem('vc-audit-user') || 'Auditor'
-      const valuation = await runValuation(companyId, { created_by: user })
+      const valuation = await runValuation(companyId, {
+        created_by: user,
+        method_weights: methodWeights ?? undefined,
+      })
       navigate(`/valuations/${valuation.id}`)
     } catch (err) {
       console.error(err)
@@ -433,6 +597,8 @@ export default function ValuationWorkspace() {
 
   if (loading) return <div className="text-center py-16 text-[var(--color-text-tertiary)]">Loading...</div>
   if (!company) return <div className="text-center py-16 text-[var(--color-text-tertiary)]">Company not found</div>
+
+  const runMethodCount = Object.keys(methodResults).length
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -498,11 +664,21 @@ export default function ValuationWorkspace() {
         {activeTab === 'manual' && <ManualTab company={company} />}
       </div>
 
+      {/* Method Reconciliation (when 2+ methods have results) */}
+      {runMethodCount >= 2 && (
+        <div className="mt-6">
+          <WeightingPanel
+            methodResults={methodResults}
+            onWeightsChange={setMethodWeights}
+          />
+        </div>
+      )}
+
       {/* Save as Valuation */}
       <div className="mt-6 flex justify-end">
         <button onClick={handleSaveValuation} disabled={savingValuation}
           className="px-6 py-2.5 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-50">
-          {savingValuation ? 'Saving...' : 'Save as Valuation'}
+          {savingValuation ? 'Saving...' : methodWeights ? 'Save Weighted Valuation' : 'Save as Valuation'}
         </button>
       </div>
     </div>

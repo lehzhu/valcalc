@@ -34,11 +34,22 @@ export const deleteCompany = (id: string) =>
   request<void>(`/companies/${id}`, { method: 'DELETE' })
 
 // Per-method
-export const runMethod = (companyId: string, method: string, data?: { valuation_date?: string }) =>
+export const runMethod = (companyId: string, method: string, data?: { valuation_date?: string; overrides?: Record<string, number> }) =>
   request<MethodResultOut>(`/companies/${companyId}/methods/${method}`, { method: 'POST', body: JSON.stringify(data ?? {}) })
 
+// Sensitivity
+export interface SensitivityResult {
+  wacc_values: number[]
+  tg_values: number[]
+  grid: string[][]
+  base_wacc: number
+  base_tg: number
+}
+export const runSensitivity = (companyId: string, data?: { valuation_date?: string }) =>
+  request<SensitivityResult>(`/companies/${companyId}/methods/dcf/sensitivity`, { method: 'POST', body: JSON.stringify(data ?? {}) })
+
 // Valuations
-export const runValuation = (companyId: string, data: { created_by: string; valuation_date?: string }) =>
+export const runValuation = (companyId: string, data: { created_by: string; valuation_date?: string; method_weights?: Record<string, number> }) =>
   request<Valuation>(`/companies/${companyId}/valuations`, { method: 'POST', body: JSON.stringify(data) })
 export const listValuations = (companyId: string) =>
   request<ValuationListItem[]>(`/companies/${companyId}/valuations`)
