@@ -1,23 +1,17 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from db.session import Base, get_db
 from api.main import app
 
-# IMPORTANT: port 5433, not 5432!
-TEST_DATABASE_URL = "postgresql://vc_audit:vc_audit_dev@localhost:5433/vc_audit_test"
-
-# Create the test database if it doesn't exist
-_admin_engine = create_engine("postgresql://vc_audit:vc_audit_dev@localhost:5433/vc_audit", isolation_level="AUTOCOMMIT")
-with _admin_engine.connect() as conn:
-    exists = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = 'vc_audit_test'")).fetchone()
-    if not exists:
-        conn.execute(text("CREATE DATABASE vc_audit_test"))
-_admin_engine.dispose()
-
-test_engine = create_engine(TEST_DATABASE_URL)
+test_engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestSessionLocal = sessionmaker(bind=test_engine)
 
 
