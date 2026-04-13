@@ -294,18 +294,24 @@ def run_batch_valuation(
     created_by: str,
     valuation_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Create companies and run valuations for each. Returns summary results."""
+    """Create companies and run valuations for each. Returns summary results.
+
+    Each company is wrapped in a savepoint so a failure rolls back the
+    partial company record instead of leaving orphaned rows.
+    """
     results: list[dict[str, Any]] = []
 
     for data in companies_data:
         try:
-            company = _create_or_update_company(db, data, created_by)
+            company = _create_company(db, data, created_by)
             valuation = run_company_valuation(
                 db=db,
                 company=company,
                 created_by=created_by,
                 valuation_date=valuation_date,
             )
+            # Commit company + valuation together; nothing persists on failure
+            db.commit()
 
             # Build per-method breakdown
             methods_run = []
@@ -330,6 +336,7 @@ def run_batch_valuation(
                 "valuation_id": str(valuation.id),
             })
         except Exception as e:
+            db.rollback()
             results.append({
                 "company_name": data.get("name", "Unknown"),
                 "status": "error",
@@ -339,33 +346,20 @@ def run_batch_valuation(
     return results
 
 
-def _create_or_update_company(
+def _create_company(
     db: Session,
     data: dict[str, Any],
     created_by: str,
 ) -> Company:
-    """Create a new company or update an existing one by name."""
-    existing = db.query(Company).filter(Company.name == data["name"]).first()
+    """Create a new company from batch data. Always creates a fresh record."""
+    company = Company(
+        name=data["name"],
+        stage=data.get("stage", "seed"),
+        sector=data.get("sector", "information_technology"),
+        revenue_status=data.get("revenue_status", "pre_revenue"),
+        created_by=created_by,
+    )
 
-    if existing:
-        company = existing
-    else:
-        company = Company(
-            name=data["name"],
-            stage=data.get("stage", "seed"),
-            sector=data.get("sector", "information_technology"),
-            revenue_status=data.get("revenue_status", "pre_revenue"),
-            created_by=created_by,
-        )
-        db.add(company)
-
-    # Update fields
-    if "stage" in data:
-        company.stage = data["stage"]
-    if "sector" in data:
-        company.sector = data["sector"]
-    if "revenue_status" in data:
-        company.revenue_status = data["revenue_status"]
     if "current_revenue" in data:
         company.current_revenue = data["current_revenue"]
 
@@ -385,6 +379,7 @@ def _create_or_update_company(
     if "external_mapping" in data:
         company.external_mapping = data["external_mapping"]
 
+    db.add(company)
     db.flush()
     return company
 

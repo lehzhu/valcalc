@@ -206,12 +206,12 @@ export default function ValuationWorkspace() {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       pendingChanges.current = false
-      doSaveAndRun()
+      doSave()
     }, 5000)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save company data + run active method
-  const doSaveAndRun = useCallback(async () => {
+  // Save company data + run method preview (no committed valuation)
+  const doSave = useCallback(async () => {
     if (!companyId || !company) return
     setAutoSaveStatus('saving')
     setError('')
@@ -233,7 +233,7 @@ export default function ValuationWorkspace() {
       const updated = await updateCompany(companyId, update)
       setCompany(updated)
 
-      // Run active method
+      // Run active method for preview only — no valuation record created
       const res = await runMethod(companyId, activeTab, {
         overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
       }).catch(() => null)
@@ -241,13 +241,6 @@ export default function ValuationWorkspace() {
       if (res) {
         setMethodResults(prev => ({ ...prev, [activeTab]: res }))
       }
-
-      // Also auto-save as a valuation (with any overrides)
-      const user = localStorage.getItem('vc-audit-user') || 'Auditor'
-      await runValuation(companyId, {
-        created_by: user,
-        overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
-      }).catch(() => {})
 
       setAutoSaveStatus('saved')
       setTimeout(() => setAutoSaveStatus('idle'), 2000)
@@ -257,11 +250,17 @@ export default function ValuationWorkspace() {
     }
   }, [companyId, company, editStage, editSector, editRevenueStatus, editRevenue, editRoundDate, editPreMoney, editAmountRaised, editLeadInvestor, activeTab, overrides])
 
-  // Manual run
+  // Manual run — saves company data, runs preview, AND commits a valuation record
   const handleRun = async () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setRunning(true)
-    await doSaveAndRun()
+    await doSave()
+    // Commit a versioned valuation record
+    const user = localStorage.getItem('vc-audit-user') || 'Auditor'
+    await runValuation(companyId!, {
+      created_by: user,
+      overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+    }).catch(() => {})
     setRunning(false)
   }
 
@@ -294,6 +293,10 @@ export default function ValuationWorkspace() {
       if (data.last_round.lead_investor) setEditLeadInvestor(data.last_round.lead_investor)
     }
     if (data.projections) update.projections = data.projections
+    if (data.financials) update.financials = data.financials
+    if (data.qualitative) update.qualitative = data.qualitative
+    if (data.cap_table) update.cap_table = data.cap_table
+    if (data.external_mapping) update.external_mapping = data.external_mapping
     if (Object.keys(update).length > 0) {
       const updated = await updateCompany(companyId, update)
       setCompany(updated)

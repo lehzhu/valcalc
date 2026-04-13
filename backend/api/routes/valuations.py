@@ -30,6 +30,7 @@ def create_valuation(company_id: UUID, body: ValuationRunRequest, db: Session = 
         method_weights=body.method_weights,
         overrides=body.overrides,
     )
+    db.commit()
     return valuation
 
 
@@ -94,4 +95,5 @@ def override_valuation(valuation_id: UUID, body: OverrideRequest, db: Session = 
         justification=body.justification,
         created_by=body.created_by,
     )
+    db.commit()
     return updated

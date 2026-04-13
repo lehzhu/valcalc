@@ -52,6 +52,10 @@ export default function NewValuation() {
         current_revenue: importedData?.current_revenue,
         last_round: importedData?.last_round,
         projections: importedData?.projections,
+        financials: importedData?.financials,
+        qualitative: importedData?.qualitative,
+        cap_table: importedData?.cap_table,
+        external_mapping: importedData?.external_mapping,
         created_by: user,
       })
       navigate(`/companies/${company.id}/workspace`)

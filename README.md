@@ -2,66 +2,6 @@
 
 A structured, auditable valuation engine for private portfolio companies. Built for auditors reviewing venture capital portfolios under ASC 820 / IPEV guidelines.
 
-## Approach & Methodology
-
-ValCalc implements **Recent Financing + Calibration** as the primary valuation method. This follows ASC 820-10-35 guidance: start from the most recent arm's-length transaction price and calibrate forward based on what has changed since.
-
-**The calibration engine runs 6 steps, each individually sourced and traced:**
-
-1. **Anchor** -- post-money valuation from last financing round
-2. **Time adjustment** -- staleness decay after a 12-month grace period (2%/quarter)
-3. **Financial performance** -- revenue trajectory, gross margin, runway signals
-4. **Market/sector** -- sector benchmark movement since the round
-5. **Qualitative** -- board plan status, customer concentration, regulatory risk
-6. **Cap table notes** -- liquidation preferences, option pools, SAFEs (noted; OPM not modeled)
-
-Comparable company multiples (comps) serve as a cross-check when revenue data is available. When no round data exists, comps becomes the primary method. DCF was intentionally excluded -- it requires projection assumptions that introduce more noise than signal for early/mid-stage companies and doesn't match how auditors typically approach VC portfolios.
-
-### Why this method?
-
-The assignment asks for a single, well-engineered workflow. We chose calibration because:
-
-- It's the most common approach auditors actually use for VC portfolios (per IPEV and ASC 820)
-- It has a clear anchor (the transaction price) rather than relying on estimated multiples or projected cash flows
-- It naturally accommodates sparse data -- you can run it with just a round date and valuation, and layer in financial/qualitative data as available
-- Every adjustment is individually traceable, which is exactly what audit workpapers need
-
-## Key Design Decisions & Tradeoffs
-
-**Backend is the product.** The engine produces a complete `reasoning_trace` -- conclusion-first, with each calibration step showing the equation template and working numbers separately, plus citations on every assumption. This output is self-contained: the CLI (`python cli.py demo`) produces the same audit-quality trace as the API, independent of any frontend.
-
-**Batch-first intake.** The primary workflow is uploading a portfolio spreadsheet (one row per company) that triggers automated valuations across the entire portfolio. Single-company Excel import (5-sheet template) and manual entry are also supported. No wizard, no follow-up questions -- the system runs both methods on every company where data permits.
-
-**Conservative by design.** Time decay is one-directional (no appreciation), DLOM always applies, WACC defaults high by stage, benchmarks use medians not optimistic percentiles. This matches audit practice where overstatement risk matters more than precision.
-
-**Citations everywhere, never fabricated.** Every assumption carries a `source` field tracing to ASC 820, IPEV Guidelines, benchmark data versions, or company financial data. The engine never produces a number without explaining where it came from.
-
-**Stage and revenue tiers are calculation parameters, not labels.** A Series C+ company gets a 22% WACC; scaled revenue reduces it by 2%. These flow directly into the math, not just the UI.
-
-**Overrideable assumptions with audit trail.** Any assumption marked `overrideable: true` can be adjusted. Overrides are tracked and persisted in the audit trail.
-
-### A note on data
-
-**All benchmark data is mocked.** Sector revenue multiples, growth rates, and trend factors in `backend/valuation_engine/benchmarks/data/` are realistic but synthetic. In production these would come from PitchBook, S&P Capital IQ, or PrivCo. The mock data is flagged in source citations (e.g., `Benchmark v2025-Q1`) so it's never mistaken for live market data.
-
-The three test portfolio files (`backend/tests/fixtures/batch_*.xlsx`) contain fictional companies with realistic financials. They exist to demonstrate the engine's behavior across stages, sectors, and edge cases -- not to represent real investments.
-
-### Evolution & Process
-
-The system went through several intentional pivots during development:
-
-1. **Started with three equal methods** (Comps, DCF, Last Round) with a rules engine selecting the primary method based on company profile. Each method had full audit trails from the start.
-
-2. **Removed confidence scoring** early on -- it added noise without helping auditors make decisions. Method selection is deterministic based on data availability, not probabilistic.
-
-3. **Switched from PostgreSQL/Docker to SQLite** to simplify setup. For an audit tool processing individual portfolios, SQLite is the right choice -- no infrastructure overhead, single-file database, trivially portable.
-
-4. **Pivoted to calibration-primary architecture.** After deeper analysis of ASC 820-10-35 and how auditors actually work, restructured so Recent Financing + Calibration is always primary when round data exists. Comps became a cross-check.
-
-5. **Removed DCF entirely.** DCF projections introduce speculative assumptions that don't serve audit-grade work for early/mid-stage companies. Two deterministic methods (calibrated last round + market comps) are more defensible than three where one is noise.
-
-6. **Moved presentation logic to the backend.** The reversed reasoning trace (conclusion first, equation vs working distinction) was initially a frontend rendering concern. Moved it to the engine as `reasoning_trace` so the API and CLI produce the same structured output.
-
 ## Setup
 
 ```bash
@@ -82,9 +22,65 @@ npm run dev
 
 Requires Python 3.12+ and Node 18+. SQLite (no external database needed).
 
+## Approach & Methodology
+
+ValCalc implements **Recent Financing + Calibration** as the primary valuation method. This follows ASC 820-10-35 guidance: start from the most recent arm's-length transaction price and calibrate forward based on what has changed since.
+
+**The calibration engine runs 6 steps, each individually sourced and traced:**
+
+1. **Anchor**: post-money valuation from last financing round
+2. **Time adjustment**: staleness decay after a 12-month grace period (2%/quarter)
+3. **Financial performance**: revenue trajectory, gross margin, runway signals
+4. **Market/sector**: sector benchmark movement since the round
+5. **Qualitative**: board plan status, customer concentration, regulatory risk
+6. **Cap table notes**: liquidation preferences, option pools, SAFEs (noted; OPM not modeled)
+
+Comparable company multiples (comps) serve as a cross-check when revenue data is available. When no round data exists, comps becomes the primary method.
+
+### Why this method?
+
+The assignment asks for a single, well-engineered workflow. We chose calibration because:
+
+- It's the most common approach auditors actually use for VC portfolios (per IPEV and ASC 820)
+- It has a clear anchor (the transaction price) rather than relying on estimated multiples or projected cash flows
+- It naturally accommodates sparse data: you can run it with just a round date and valuation, and layer in financial/qualitative data as available
+- Every adjustment is individually traceable, which is exactly what audit workpapers need
+
+## Key Design Decisions & Tradeoffs
+
+**Backend is the product.** The engine produces a complete `reasoning_trace` (conclusion-first, with each calibration step showing the equation template and working numbers separately, plus citations on every assumption). This output is self-contained: the CLI (`python cli.py demo`) produces the same audit-quality trace as the API, independent of any frontend.
+
+**Batch-first intake.** The primary workflow is uploading a portfolio spreadsheet (one row per company) that triggers automated valuations across the entire portfolio. Single-company Excel import (5-sheet template) and manual entry are also supported. No wizard, no follow-up questions; the system runs both methods on every company where data permits.
+
+**Conservative by design.** Time decay is one-directional (no appreciation), DLOM always applies, discount rates default high by stage, benchmarks use medians not optimistic percentiles. This matches audit practice where overstatement risk matters more than precision.
+
+**Citations everywhere, never fabricated.** Every assumption carries a `source` field tracing to ASC 820, IPEV Guidelines, benchmark data versions, or company financial data. The engine never produces a number without explaining where it came from.
+
+**Stage and revenue tiers are calculation parameters, not labels.** A Series C+ company gets a higher base discount rate; scaled revenue reduces it. These flow directly into the calibration math, not just the UI.
+
+**Overrideable assumptions with audit trail.** Any assumption marked `overrideable: true` can be adjusted. Overrides are tracked and persisted in the audit trail.
+
+### A note on data
+
+**All benchmark data is mocked.** Sector revenue multiples, growth rates, and trend factors in `backend/valuation_engine/benchmarks/data/` are realistic but synthetic. In production these would come from PitchBook, S&P Capital IQ, or PrivCo. The mock data is flagged in source citations (e.g., `Benchmark v2025-Q1`) so it's never mistaken for live market data.
+
+The three test portfolio files (`backend/tests/fixtures/batch_*.xlsx`) contain fictional companies with realistic financials. They exist to demonstrate the engine's behavior across stages, sectors, and edge cases, not to represent real investments.
+
+### Evolution & Process
+
+The system went through several intentional pivots during development:
+
+1. **Started broad, then focused.** Early versions had more valuation methods; we narrowed to the two that auditors actually rely on for VC portfolios. Method selection is deterministic based on data availability, not probabilistic.
+
+2. **Switched from PostgreSQL/Docker to SQLite** to simplify setup. For an audit tool processing individual portfolios, SQLite is the right choice: no infrastructure overhead, single-file database, trivially portable.
+
+3. **Pivoted to calibration-primary architecture.** After deeper analysis of ASC 820-10-35 and how auditors actually work, restructured so Recent Financing + Calibration is always primary when round data exists. Comps became a cross-check.
+
+4. **Moved presentation logic to the backend.** The reversed reasoning trace (conclusion first, equation vs working distinction) was initially a frontend rendering concern. Moved it to the engine as `reasoning_trace` so the API and CLI produce the same structured output.
+
 ## CLI
 
-The fastest way to use ValCalc. No server needed -- runs the engine directly.
+The fastest way to use ValCalc. No server needed; runs the engine directly.
 
 ```bash
 cd backend && source .venv/bin/activate
@@ -120,15 +116,15 @@ python cli.py test
 
 The CLI prints a structured audit trace for each company. Here's what each section means:
 
-**Header** -- the fair value estimate, range (low-high based on sensitivity), and which method was primary.
+**Header**: the fair value estimate, range (low-high based on sensitivity), and which method was primary.
 
-**Cross-checks** -- if both Last Round and Comps ran, the secondary method's range appears here. A large gap between methods is a signal to investigate, not a bug.
+**Cross-checks**: if both Last Round and Comps ran, the secondary method's range appears here. A large gap between methods is a signal to investigate, not a bug.
 
-**Calibration Steps** -- the full derivation from anchor to conclusion, in reverse order (conclusion first, anchor last). Each step shows what was applied and the running total. Read bottom-to-top to follow the math forward.
+**Calibration Steps**: the full derivation from anchor to conclusion, in reverse order (conclusion first, anchor last). Each step shows what was applied and the running total. Read bottom-to-top to follow the math forward.
 
-**Assumptions** -- every input the engine used, with `[overrideable]` flags. Each shows a rationale (why this value) and source (where it came from). Override these via the `--json` flag + API `overrides` parameter.
+**Assumptions**: every input the engine used, with `[overrideable]` flags. Each shows a rationale (why this value) and source (where it came from). Override these via the `--json` flag + API `overrides` parameter.
 
-**Sources** -- data provenance. `v2025-Q1` means mocked benchmark data. `Round dated YYYY-MM-DD` traces to the company's financing history.
+**Sources**: data provenance. `v2025-Q1` means mocked benchmark data. `Round dated YYYY-MM-DD` traces to the company's financing history.
 
 ### Batch output
 
@@ -141,7 +137,7 @@ Companies that fail valuation (e.g., missing required fields) show as `ERROR` wi
 ```bash
 cd backend && source .venv/bin/activate
 
-# Run all 58 tests
+# Run all 61 tests
 python cli.py test
 # or equivalently:
 pytest tests/ -v
@@ -172,7 +168,7 @@ python cli.py example | python cli.py value - --json | jq '.fair_value'
 | `batch_25_portfolio.xlsx` | 25 | Full VC fund simulation. Stage distribution: 20% seed, 32% Series A, 28% Series B, 20% late. Real investor names, varied cap table complexity. |
 | `batch_5_edge_cases.xlsx` | 5 | Pre-revenue SAFE with no financials, stale 2022 round with 4-month runway, $340M late-stage with participating preferred, high-risk/high-growth, 500% hyper-growth from tiny base. |
 
-All fixture data is **synthetic** -- fictional companies with realistic financials. The files were generated by `backend/tests/fixtures/generate_batch_fixtures.py` and can be regenerated.
+All fixture data is **synthetic** (fictional companies with realistic financials). The files were generated by `backend/tests/fixtures/generate_batch_fixtures.py` and can be regenerated.
 
 ## API
 
@@ -180,7 +176,8 @@ Start the server with `./start.sh` or `uvicorn api.main:app --port 8000`.
 
 ```bash
 # Batch import: upload portfolio spreadsheet (creates companies + runs valuations)
-curl -X POST http://localhost:8000/api/v1/import/batch -F "file=@portfolio.xlsx"
+curl -X POST http://localhost:8000/api/v1/import/batch \
+  -F "file=@portfolio.xlsx" -F "created_by=auditor"
 
 # Create a single company
 curl -X POST http://localhost:8000/api/v1/companies -H "Content-Type: application/json" \
@@ -214,19 +211,19 @@ Every valuation returns four required outputs:
 | **Citations / data sources** | `reasoning_trace.data_sources[]` + each assumption's `source` field |
 | **Explanation of derivation** | `reasoning_trace.calibration_steps[]` (equation + working per step) |
 
-The `reasoning_trace` is the authoritative output. It's structured for both machine consumption (JSON) and human reading (CLI formatter). The frontend renders it, but the backend produces it -- the API and CLI are first-class interfaces, not wrappers around a UI.
+The `reasoning_trace` is the authoritative output. It's structured for both machine consumption (JSON) and human reading (CLI formatter). The frontend renders it, but the backend produces it; the API and CLI are first-class interfaces, not wrappers around a UI.
 
 ## Stack
 
 **Backend:** Python, FastAPI, SQLAlchemy 2.0, Pydantic v2, SQLite
 **Frontend:** React 19, TypeScript, Tailwind CSS v4, Vite
-**Tests:** 58 unit/integration tests, 3 mock portfolio fixtures (10, 25, 5-edge-case companies)
+**Tests:** 61 unit/integration tests, 3 mock portfolio fixtures (10, 25, 5-edge-case companies)
 
 ## Extension
 
-- **Real benchmark data** -- current sector multiples are mock (flagged in source as `v2025-Q1`). Production would pull from PitchBook, S&P Capital IQ, or PrivCo.
-- **Equity allocation (OPM/waterfall)** -- the engine notes cap table complexity but doesn't model option pricing or liquidation preference waterfalls. This is the gap between enterprise value and per-share fair value.
-- **Data integration** -- Netsuite, Carta, Microsoft Dynamics for automated portfolio data ingestion.
-- **Historical market index integration** -- replace static sector trend factors with actual index performance data (e.g., NASDAQ IT index movement since round date).
-- **PDF/document parsing** -- currently supports Excel/CSV. Adding PDF parsing (term sheets, board decks) would enable ingesting common audit documents directly.
-- **Multi-user review workflow** -- reviewer/approver roles with sign-off tracking for audit team collaboration.
+- **Real benchmark data**: current sector multiples are mock (flagged in source as `v2025-Q1`). Production would pull from PitchBook, S&P Capital IQ, or PrivCo.
+- **Equity allocation (OPM/waterfall)**: the engine notes cap table complexity but doesn't model option pricing or liquidation preference waterfalls. This is the gap between enterprise value and per-share fair value.
+- **Data integration**: Netsuite, Carta, Microsoft Dynamics for automated portfolio data ingestion.
+- **Historical market index integration**: replace static sector trend factors with actual index performance data (e.g., NASDAQ IT index movement since round date).
+- **PDF/document parsing**: currently supports Excel/CSV. Adding PDF parsing (term sheets, board decks) would enable ingesting common audit documents directly.
+- **Multi-user review workflow**: reviewer/approver roles with sign-off tracking for audit team collaboration.

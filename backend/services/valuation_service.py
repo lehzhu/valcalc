@@ -191,8 +191,7 @@ def run_company_valuation(
         created_by=created_by,
     )
     db.add(valuation)
-    db.commit()
-    db.refresh(valuation)
+    db.flush()
     return valuation
 
 
@@ -300,6 +299,5 @@ def apply_override(
             "secondary_methods": [],
         },
     })
-    db.commit()
-    db.refresh(valuation)
+    db.flush()
     return valuation
