@@ -23,7 +23,7 @@ def test_company_input_minimal():
     company = CompanyInput(
         name="Acme Corp",
         stage=CompanyStage.SEED,
-        sector="b2b_saas",
+        sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
     )
     assert company.name == "Acme Corp"
@@ -35,7 +35,7 @@ def test_company_input_full():
     company = CompanyInput(
         name="Beta Inc",
         stage=CompanyStage.SERIES_A,
-        sector="fintech",
+        sector="financials",
         revenue_status=RevenueStatus.EARLY_REVENUE,
         current_revenue=Decimal("3400000"),
         last_round=FundingRound(

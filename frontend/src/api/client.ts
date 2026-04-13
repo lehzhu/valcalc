@@ -62,5 +62,36 @@ export const exportJsonUrl = (id: string) => `${BASE}/valuations/${id}/export/js
 export const exportXlsxUrl = (id: string) => `${BASE}/valuations/${id}/export/xlsx`
 export const exportPdfUrl = (id: string) => `${BASE}/valuations/${id}/export/pdf`
 
+// Import / Document upload
+export interface ParsedImport {
+  name?: string
+  stage?: string
+  sector?: string
+  revenue_status?: string
+  current_revenue?: string
+  last_round?: {
+    date: string
+    pre_money_valuation: string
+    amount_raised: string
+    lead_investor?: string
+  }
+  projections?: {
+    periods: { year: number; revenue: string; ebitda?: string; growth_rate?: number }[]
+  }
+}
+
+export async function uploadDocument(file: File): Promise<ParsedImport> {
+  const form = new FormData()
+  form.append('file', file)
+  const resp = await fetch(`${BASE}/import/parse`, { method: 'POST', body: form })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({ detail: 'Upload failed' }))
+    throw new Error(body.detail || `Upload failed (${resp.status})`)
+  }
+  return resp.json()
+}
+
+export const importTemplateUrl = `${BASE}/import/template`
+
 // Benchmarks
 export const listSectors = () => request<BenchmarkSector[]>('/benchmarks/sectors')

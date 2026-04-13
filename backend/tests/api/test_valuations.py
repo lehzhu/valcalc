@@ -2,7 +2,7 @@ def _create_company(client, **overrides):
     defaults = {
         "name": "Test Co",
         "stage": "series_a",
-        "sector": "b2b_saas",
+        "sector": "information_technology",
         "revenue_status": "growing_revenue",
         "current_revenue": "5000000",
         "created_by": "Alice",

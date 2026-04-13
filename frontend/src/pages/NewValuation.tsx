@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { createCompany, listSectors } from '../api/client'
+import type { ParsedImport } from '../api/client'
 import { STAGES, REVENUE_STATUSES } from '../types'
 import type { BenchmarkSector } from '../types'
+import DocumentUpload from '../components/DocumentUpload'
 
 interface FormData {
   name: string
@@ -17,7 +19,8 @@ export default function NewValuation() {
   const [sectors, setSectors] = useState<BenchmarkSector[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const { register, watch, handleSubmit } = useForm<FormData>({
+  const [importedData, setImportedData] = useState<ParsedImport | null>(null)
+  const { register, watch, handleSubmit, setValue } = useForm<FormData>({
     defaultValues: {
       stage: 'seed',
       revenue_status: 'pre_revenue',
@@ -27,6 +30,14 @@ export default function NewValuation() {
   const revenueStatus = watch('revenue_status')
 
   useEffect(() => { listSectors().then(setSectors).catch(() => {}) }, [])
+
+  const handleImport = (data: ParsedImport) => {
+    setImportedData(data)
+    if (data.name) setValue('name', data.name)
+    if (data.stage) setValue('stage', data.stage)
+    if (data.sector) setValue('sector', data.sector)
+    if (data.revenue_status) setValue('revenue_status', data.revenue_status)
+  }
 
   const onSubmit = async (data: FormData) => {
     setSubmitting(true)
@@ -38,6 +49,9 @@ export default function NewValuation() {
         stage: data.stage,
         sector: data.sector,
         revenue_status: data.revenue_status,
+        current_revenue: importedData?.current_revenue,
+        last_round: importedData?.last_round,
+        projections: importedData?.projections,
         created_by: user,
       })
       navigate(`/companies/${company.id}/workspace`)
@@ -54,7 +68,11 @@ export default function NewValuation() {
   return (
     <div className="max-w-lg mx-auto">
       <h1 className="text-xl font-semibold text-[var(--color-text-primary)] mb-1">New Company</h1>
-      <p className="text-sm text-[var(--color-text-tertiary)] mb-6">Enter the basics, then configure methods in the workspace.</p>
+      <p className="text-sm text-[var(--color-text-tertiary)] mb-6">Import from a document or enter the basics manually.</p>
+
+      <div className="mb-6">
+        <DocumentUpload onParsed={handleImport} />
+      </div>
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>

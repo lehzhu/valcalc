@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { getCompany, updateCompany, runMethod, runValuation, listSectors, runSensitivity } from '../api/client'
-import type { SensitivityResult } from '../api/client'
+import type { SensitivityResult, ParsedImport } from '../api/client'
 import type { Company, MethodResultOut, BenchmarkSector, FundingRound, ProjectionPeriod } from '../types'
 import RangeBar from '../components/RangeBar'
 import SensitivityTable from '../components/SensitivityTable'
 import WeightingPanel from '../components/WeightingPanel'
+import DocumentUpload from '../components/DocumentUpload'
 import { formatLabel } from '../utils/labels'
 
 const METHOD_TABS = [
@@ -109,32 +110,59 @@ function MethodResultDisplay({
         </div>
       </div>
 
-      {/* Computation Steps */}
+      {/* Reasoning Trace (reversed: conclusion first, then derivation) */}
       {result.steps.length > 0 && (
         <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
           <button onClick={() => setStepsOpen(o => !o)} className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-[var(--color-surface-secondary)] transition-colors">
-            <span className="text-sm font-medium text-[var(--color-text-primary)]">Computation Steps ({result.steps.length})</span>
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">Reasoning Trace</span>
             <span className="text-xs text-[var(--color-text-tertiary)]">{stepsOpen ? 'Collapse' : 'Expand'}</span>
           </button>
           {stepsOpen && (
-            <div className="px-4 pb-4 space-y-3">
-              {result.steps.map((step, i) => (
-                <div key={i} className="border-l-2 border-[var(--color-primary)] pl-3">
-                  <p className="text-xs font-medium text-[var(--color-text-secondary)]"
-                    title={debug ? `Formula: ${step.formula} | Inputs: ${JSON.stringify(step.inputs)}` : undefined}
-                  >
-                    {i + 1}. {step.description}
-                    {debug && <span className="ml-1.5 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-100 text-[var(--color-primary)] text-[9px] font-bold cursor-help" title={`${step.formula}\n\nInputs: ${Object.entries(step.inputs).map(([k, v]) => `${k} = ${v}`).join(', ')}`}>i</span>}
-                  </p>
-                  <p className="text-xs text-[var(--color-text-tertiary)] font-mono mt-0.5">{step.formula}</p>
-                  <div className="flex flex-wrap gap-3 mt-0.5">
-                    {Object.entries(step.inputs).map(([k, v]) => (
-                      <span key={k} className="text-xs text-[var(--color-text-tertiary)]">{k}: <span className="text-[var(--color-text-secondary)]">{v}</span></span>
-                    ))}
+            <div className="px-4 pb-4 space-y-2">
+              {[...result.steps].reverse().map((step, i, arr) => {
+                const isConclusion = i === 0
+                const stepNum = arr.length - i
+                // A "set equation" has operators like =, ×, ÷, /, +, Σ or →
+                const isEquation = /[=×÷+\-*/Σ→∑]/.test(step.formula) && !step.formula.startsWith('sector')
+                return (
+                  <div key={i} className={`rounded-lg px-3 py-2.5 ${isConclusion ? 'bg-indigo-50 border border-indigo-200' : ''}`}>
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        isConclusion
+                          ? 'bg-[var(--color-primary)] text-white'
+                          : isEquation
+                            ? 'bg-indigo-100 text-[var(--color-primary)]'
+                            : 'bg-[var(--color-surface-tertiary)] text-[var(--color-text-tertiary)]'
+                      }`}>
+                        {isConclusion ? '✓' : stepNum}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={`text-xs font-medium ${isConclusion ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
+                            {step.description}
+                          </p>
+                          {!isConclusion && (
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
+                              isEquation
+                                ? 'bg-indigo-50 text-indigo-600'
+                                : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {isEquation ? 'equation' : 'working'}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-xs font-mono mt-0.5 ${isEquation ? 'text-indigo-500' : 'text-[var(--color-text-tertiary)]'}`}>{step.formula}</p>
+                        <div className="flex flex-wrap gap-3 mt-0.5">
+                          {Object.entries(step.inputs).map(([k, v]) => (
+                            <span key={k} className="text-xs text-[var(--color-text-tertiary)]">{k}: <span className="text-[var(--color-text-secondary)]">{v}</span></span>
+                          ))}
+                        </div>
+                        <p className={`text-xs font-semibold mt-0.5 ${isConclusion ? 'text-[var(--color-primary)] text-sm' : 'text-[var(--color-text-primary)]'}`}>= {step.output}</p>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs font-medium text-[var(--color-text-primary)] mt-0.5">= {step.output}</p>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -579,6 +607,21 @@ export default function ValuationWorkspace() {
     setMethodResults(prev => ({ ...prev, [method]: result }))
   }, [])
 
+  const handleImport = useCallback(async (data: ParsedImport) => {
+    if (!companyId) return
+    const update: Record<string, unknown> = {}
+    if (data.current_revenue) update.current_revenue = data.current_revenue
+    if (data.last_round) update.last_round = data.last_round
+    if (data.projections) update.projections = data.projections
+    if (data.stage) update.stage = data.stage
+    if (data.sector) update.sector = data.sector
+    if (data.revenue_status) update.revenue_status = data.revenue_status
+    if (Object.keys(update).length > 0) {
+      const updated = await updateCompany(companyId, update as Partial<import('../types').CompanyCreate>)
+      setCompany(updated)
+    }
+  }, [companyId])
+
   const handleSaveValuation = async () => {
     if (!companyId) return
     setSavingValuation(true)
@@ -614,6 +657,7 @@ export default function ValuationWorkspace() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <DocumentUpload onParsed={handleImport} compact />
           <label className="flex items-center gap-1.5 cursor-pointer select-none">
             <span className="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">Debug</span>
             <button

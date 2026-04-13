@@ -3,7 +3,7 @@ from decimal import Decimal
 from valuation_engine.models import CompanyInput, CompanyStage, RevenueStatus, MethodType
 from valuation_engine.methods.comps import ComparableCompanyMultiples
 
-def _make_company(sector="b2b_saas", revenue=Decimal("3400000"), stage=CompanyStage.SERIES_A, revenue_status=RevenueStatus.GROWING_REVENUE):
+def _make_company(sector="information_technology", revenue=Decimal("3400000"), stage=CompanyStage.SERIES_A, revenue_status=RevenueStatus.GROWING_REVENUE):
     return CompanyInput(name="Test Co", stage=stage, sector=sector, revenue_status=revenue_status, current_revenue=revenue)
 
 def test_basic_comps_valuation():

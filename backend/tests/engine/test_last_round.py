@@ -5,7 +5,7 @@ from valuation_engine.methods.last_round import LastRoundAdjusted
 
 def _make_company(round_date: date, pre_money: Decimal, raised: Decimal) -> CompanyInput:
     return CompanyInput(
-        name="Test Co", stage=CompanyStage.SEED, sector="b2b_saas",
+        name="Test Co", stage=CompanyStage.SEED, sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
         last_round=FundingRound(date=round_date, pre_money_valuation=pre_money, amount_raised=raised),
     )

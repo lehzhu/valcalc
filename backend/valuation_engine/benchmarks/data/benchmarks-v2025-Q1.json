@@ -1,79 +1,86 @@
 {
   "metadata": {
     "version": "v2025-Q1",
-    "source": "Mock benchmark dataset for MVP",
+    "source": "Mock benchmark dataset for MVP (GICS-aligned sector classifications)",
     "effective_date": "2025-03-31"
   },
   "sectors": {
-    "b2b_saas": {
-      "display_name": "B2B SaaS",
-      "revenue_multiple": { "p25": 8.0, "median": 12.5, "p75": 18.0 },
-      "ebitda_multiple": { "p25": 15.0, "median": 22.0, "p75": 30.0 },
-      "median_growth_rate": 0.35,
+    "information_technology": {
+      "display_name": "Information Technology",
+      "revenue_multiple": { "p25": 7.0, "median": 12.0, "p75": 20.0 },
+      "ebitda_multiple": { "p25": 14.0, "median": 22.0, "p75": 32.0 },
+      "median_growth_rate": 0.30,
       "sector_trend_factor": 0.03
     },
-    "consumer_tech": {
-      "display_name": "Consumer Tech",
-      "revenue_multiple": { "p25": 4.0, "median": 7.0, "p75": 12.0 },
-      "ebitda_multiple": { "p25": 10.0, "median": 16.0, "p75": 24.0 },
-      "median_growth_rate": 0.25,
-      "sector_trend_factor": -0.02
-    },
-    "fintech": {
-      "display_name": "Fintech",
-      "revenue_multiple": { "p25": 6.0, "median": 10.0, "p75": 16.0 },
-      "ebitda_multiple": { "p25": 12.0, "median": 20.0, "p75": 28.0 },
-      "median_growth_rate": 0.30,
-      "sector_trend_factor": 0.01
-    },
-    "healthcare_biotech": {
-      "display_name": "Healthcare / Biotech",
+    "healthcare": {
+      "display_name": "Healthcare",
       "revenue_multiple": { "p25": 5.0, "median": 9.0, "p75": 15.0 },
       "ebitda_multiple": { "p25": 12.0, "median": 18.0, "p75": 26.0 },
       "median_growth_rate": 0.20,
       "sector_trend_factor": 0.02
     },
-    "ai_ml": {
-      "display_name": "AI / ML",
-      "revenue_multiple": { "p25": 12.0, "median": 20.0, "p75": 35.0 },
-      "ebitda_multiple": { "p25": 20.0, "median": 30.0, "p75": 50.0 },
-      "median_growth_rate": 0.50,
-      "sector_trend_factor": 0.08
+    "financials": {
+      "display_name": "Financials",
+      "revenue_multiple": { "p25": 5.0, "median": 8.5, "p75": 14.0 },
+      "ebitda_multiple": { "p25": 10.0, "median": 16.0, "p75": 24.0 },
+      "median_growth_rate": 0.22,
+      "sector_trend_factor": 0.01
     },
-    "hardware_iot": {
-      "display_name": "Hardware / IoT",
+    "consumer_discretionary": {
+      "display_name": "Consumer Discretionary",
+      "revenue_multiple": { "p25": 3.0, "median": 6.0, "p75": 10.0 },
+      "ebitda_multiple": { "p25": 9.0, "median": 14.0, "p75": 20.0 },
+      "median_growth_rate": 0.20,
+      "sector_trend_factor": -0.01
+    },
+    "industrials": {
+      "display_name": "Industrials",
       "revenue_multiple": { "p25": 2.5, "median": 5.0, "p75": 8.0 },
       "ebitda_multiple": { "p25": 8.0, "median": 12.0, "p75": 18.0 },
       "median_growth_rate": 0.15,
       "sector_trend_factor": 0.00
     },
-    "ecommerce_marketplace": {
-      "display_name": "E-commerce / Marketplace",
-      "revenue_multiple": { "p25": 3.0, "median": 5.5, "p75": 9.0 },
-      "ebitda_multiple": { "p25": 10.0, "median": 15.0, "p75": 22.0 },
-      "median_growth_rate": 0.20,
-      "sector_trend_factor": -0.01
+    "communication_services": {
+      "display_name": "Communication Services",
+      "revenue_multiple": { "p25": 4.0, "median": 7.0, "p75": 12.0 },
+      "ebitda_multiple": { "p25": 10.0, "median": 16.0, "p75": 24.0 },
+      "median_growth_rate": 0.18,
+      "sector_trend_factor": 0.01
     },
-    "enterprise_software": {
-      "display_name": "Enterprise Software",
-      "revenue_multiple": { "p25": 7.0, "median": 11.0, "p75": 16.0 },
-      "ebitda_multiple": { "p25": 14.0, "median": 20.0, "p75": 28.0 },
-      "median_growth_rate": 0.25,
+    "energy": {
+      "display_name": "Energy",
+      "revenue_multiple": { "p25": 2.0, "median": 4.0, "p75": 7.0 },
+      "ebitda_multiple": { "p25": 6.0, "median": 10.0, "p75": 16.0 },
+      "median_growth_rate": 0.12,
       "sector_trend_factor": 0.02
     },
-    "cybersecurity": {
-      "display_name": "Cybersecurity",
-      "revenue_multiple": { "p25": 9.0, "median": 14.0, "p75": 22.0 },
-      "ebitda_multiple": { "p25": 16.0, "median": 24.0, "p75": 35.0 },
-      "median_growth_rate": 0.30,
-      "sector_trend_factor": 0.05
+    "materials": {
+      "display_name": "Materials",
+      "revenue_multiple": { "p25": 2.0, "median": 4.5, "p75": 7.5 },
+      "ebitda_multiple": { "p25": 7.0, "median": 11.0, "p75": 16.0 },
+      "median_growth_rate": 0.10,
+      "sector_trend_factor": 0.00
     },
-    "climate_cleantech": {
-      "display_name": "Climate / Clean Tech",
-      "revenue_multiple": { "p25": 4.0, "median": 7.5, "p75": 12.0 },
-      "ebitda_multiple": { "p25": 10.0, "median": 16.0, "p75": 24.0 },
-      "median_growth_rate": 0.25,
-      "sector_trend_factor": 0.04
+    "real_estate": {
+      "display_name": "Real Estate",
+      "revenue_multiple": { "p25": 3.0, "median": 6.0, "p75": 10.0 },
+      "ebitda_multiple": { "p25": 10.0, "median": 15.0, "p75": 22.0 },
+      "median_growth_rate": 0.12,
+      "sector_trend_factor": -0.02
+    },
+    "consumer_staples": {
+      "display_name": "Consumer Staples",
+      "revenue_multiple": { "p25": 2.5, "median": 5.0, "p75": 8.5 },
+      "ebitda_multiple": { "p25": 8.0, "median": 13.0, "p75": 18.0 },
+      "median_growth_rate": 0.10,
+      "sector_trend_factor": 0.00
+    },
+    "utilities": {
+      "display_name": "Utilities",
+      "revenue_multiple": { "p25": 2.0, "median": 4.0, "p75": 6.5 },
+      "ebitda_multiple": { "p25": 7.0, "median": 11.0, "p75": 15.0 },
+      "median_growth_rate": 0.08,
+      "sector_trend_factor": 0.01
     }
   }
 }

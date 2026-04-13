@@ -12,7 +12,7 @@ def test_load_benchmarks_returns_dict():
 
 
 def test_get_sector_benchmarks_known_sector():
-    sector = get_sector_benchmarks("b2b_saas")
+    sector = get_sector_benchmarks("information_technology")
     assert "revenue_multiple" in sector
     assert "median" in sector["revenue_multiple"]
     assert sector["revenue_multiple"]["median"] > 0

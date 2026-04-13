@@ -16,7 +16,7 @@ def test_create_company(client):
     resp = client.post("/api/v1/companies", json={
         "name": "Acme Corp",
         "stage": "seed",
-        "sector": "b2b_saas",
+        "sector": "information_technology",
         "revenue_status": "pre_revenue",
         "created_by": "Alice",
     })
@@ -30,7 +30,7 @@ def test_create_company_with_round(client):
     resp = client.post("/api/v1/companies", json={
         "name": "Beta Inc",
         "stage": "series_a",
-        "sector": "fintech",
+        "sector": "financials",
         "revenue_status": "growing_revenue",
         "current_revenue": "5000000",
         "last_round": {
@@ -48,11 +48,11 @@ def test_create_company_with_round(client):
 
 def test_list_companies(client):
     client.post("/api/v1/companies", json={
-        "name": "Co 1", "stage": "seed", "sector": "ai_ml",
+        "name": "Co 1", "stage": "seed", "sector": "information_technology",
         "revenue_status": "pre_revenue", "created_by": "Alice",
     })
     client.post("/api/v1/companies", json={
-        "name": "Co 2", "stage": "series_c_plus", "sector": "fintech",
+        "name": "Co 2", "stage": "series_c_plus", "sector": "financials",
         "revenue_status": "scaled_revenue", "created_by": "Alice",
     })
     resp = client.get("/api/v1/companies")
@@ -62,7 +62,7 @@ def test_list_companies(client):
 
 def test_get_company(client):
     create_resp = client.post("/api/v1/companies", json={
-        "name": "Acme", "stage": "seed", "sector": "b2b_saas",
+        "name": "Acme", "stage": "seed", "sector": "information_technology",
         "revenue_status": "pre_revenue", "created_by": "Alice",
     })
     company_id = create_resp.json()["id"]
@@ -73,7 +73,7 @@ def test_get_company(client):
 
 def test_update_company(client):
     create_resp = client.post("/api/v1/companies", json={
-        "name": "Acme", "stage": "seed", "sector": "b2b_saas",
+        "name": "Acme", "stage": "seed", "sector": "information_technology",
         "revenue_status": "pre_revenue", "created_by": "Alice",
     })
     company_id = create_resp.json()["id"]
@@ -84,7 +84,7 @@ def test_update_company(client):
 
 def test_delete_company(client):
     create_resp = client.post("/api/v1/companies", json={
-        "name": "Acme", "stage": "seed", "sector": "b2b_saas",
+        "name": "Acme", "stage": "seed", "sector": "information_technology",
         "revenue_status": "pre_revenue", "created_by": "Alice",
     })
     company_id = create_resp.json()["id"]

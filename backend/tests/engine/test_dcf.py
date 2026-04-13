@@ -4,7 +4,7 @@ from valuation_engine.models import CompanyInput, CompanyStage, RevenueStatus, M
 from valuation_engine.methods.dcf import DiscountedCashFlow
 
 def _make_company(stage=CompanyStage.SERIES_C_PLUS, revenue_status=RevenueStatus.SCALED_REVENUE, discount_rate=None):
-    return CompanyInput(name="Test Co", stage=stage, sector="b2b_saas", revenue_status=revenue_status,
+    return CompanyInput(name="Test Co", stage=stage, sector="information_technology", revenue_status=revenue_status,
         current_revenue=Decimal("10000000"),
         projections=FinancialProjections(periods=[
             ProjectionPeriod(year=2026, revenue=Decimal("14000000"), ebitda=Decimal("2000000")),

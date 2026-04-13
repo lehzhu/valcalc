@@ -12,7 +12,7 @@ def test_pre_revenue_company():
     company = CompanyInput(
         name="Early AI",
         stage=CompanyStage.SEED,
-        sector="ai_ml",
+        sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
         last_round=FundingRound(
             date=date(2025, 6, 1),
@@ -35,7 +35,7 @@ def test_revenue_company_with_comps():
     company = CompanyInput(
         name="SaaS Co",
         stage=CompanyStage.SERIES_A,
-        sector="b2b_saas",
+        sector="information_technology",
         revenue_status=RevenueStatus.GROWING_REVENUE,
         current_revenue=Decimal("5000000"),
     )
@@ -48,7 +48,7 @@ def test_series_c_company_with_dcf():
     company = CompanyInput(
         name="Growth Fintech",
         stage=CompanyStage.SERIES_C_PLUS,
-        sector="fintech",
+        sector="financials",
         revenue_status=RevenueStatus.SCALED_REVENUE,
         current_revenue=Decimal("20000000"),
         projections=FinancialProjections(periods=[
@@ -67,7 +67,7 @@ def test_no_data_falls_back_to_manual():
     company = CompanyInput(
         name="Mystery Co",
         stage=CompanyStage.PRE_SEED,
-        sector="consumer_tech",
+        sector="communication_services",
         revenue_status=RevenueStatus.PRE_REVENUE,
     )
     result = run_valuation(company, valuation_date=date(2026, 1, 1))
@@ -80,7 +80,7 @@ def test_audit_trail_completeness():
     company = CompanyInput(
         name="Audit Test",
         stage=CompanyStage.SERIES_A,
-        sector="cybersecurity",
+        sector="information_technology",
         revenue_status=RevenueStatus.GROWING_REVENUE,
         current_revenue=Decimal("8000000"),
         last_round=FundingRound(
@@ -104,7 +104,7 @@ def test_run_single_method_dcf():
     company = CompanyInput(
         name="DCF Test",
         stage=CompanyStage.SERIES_C_PLUS,
-        sector="fintech",
+        sector="financials",
         revenue_status=RevenueStatus.SCALED_REVENUE,
         current_revenue=Decimal("20000000"),
         projections=FinancialProjections(periods=[
@@ -123,7 +123,7 @@ def test_run_single_method_insufficient_data():
     company = CompanyInput(
         name="No Data",
         stage=CompanyStage.SEED,
-        sector="ai_ml",
+        sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
     )
     result = run_single_method(MethodType.DCF, company)

@@ -12,7 +12,7 @@ def test_pre_revenue_with_round():
     company = CompanyInput(
         name="Early Co",
         stage=CompanyStage.SEED,
-        sector="ai_ml",
+        sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
         last_round=FundingRound(date=date(2025, 6, 1), pre_money_valuation=Decimal("10000000"), amount_raised=Decimal("3000000")),
     )
@@ -25,7 +25,7 @@ def test_pre_revenue_no_round():
     company = CompanyInput(
         name="Very Early Co",
         stage=CompanyStage.PRE_SEED,
-        sector="ai_ml",
+        sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
     )
     recs = recommend_methods(company)
@@ -37,7 +37,7 @@ def test_early_revenue_with_benchmarks():
     company = CompanyInput(
         name="Revenue Co",
         stage=CompanyStage.SERIES_A,
-        sector="b2b_saas",
+        sector="information_technology",
         revenue_status=RevenueStatus.EARLY_REVENUE,
         current_revenue=Decimal("800000"),
     )
@@ -50,7 +50,7 @@ def test_revenue_with_round_gets_secondary():
     company = CompanyInput(
         name="Revenue Co",
         stage=CompanyStage.SERIES_A,
-        sector="b2b_saas",
+        sector="information_technology",
         revenue_status=RevenueStatus.GROWING_REVENUE,
         current_revenue=Decimal("3000000"),
         last_round=FundingRound(date=date(2025, 1, 1), pre_money_valuation=Decimal("20000000"), amount_raised=Decimal("5000000")),
@@ -65,7 +65,7 @@ def test_series_c_with_projections_gets_dcf():
     company = CompanyInput(
         name="Growth Co",
         stage=CompanyStage.SERIES_C_PLUS,
-        sector="fintech",
+        sector="financials",
         revenue_status=RevenueStatus.SCALED_REVENUE,
         current_revenue=Decimal("20000000"),
         projections=FinancialProjections(periods=[
@@ -84,7 +84,7 @@ def test_series_b_with_projections_gets_comps_primary_dcf_secondary():
     company = CompanyInput(
         name="Series B Co",
         stage=CompanyStage.SERIES_B,
-        sector="b2b_saas",
+        sector="information_technology",
         revenue_status=RevenueStatus.GROWING_REVENUE,
         current_revenue=Decimal("5000000"),
         projections=FinancialProjections(periods=[
@@ -103,7 +103,7 @@ def test_pre_revenue_with_round_and_projections_gets_dcf_secondary():
     company = CompanyInput(
         name="Pre-Rev Projections Co",
         stage=CompanyStage.SEED,
-        sector="ai_ml",
+        sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
         last_round=FundingRound(date=date(2025, 6, 1), pre_money_valuation=Decimal("10000000"), amount_raised=Decimal("3000000")),
         projections=FinancialProjections(periods=[
@@ -121,7 +121,7 @@ def test_recommendations_have_rationales():
     company = CompanyInput(
         name="Test Co",
         stage=CompanyStage.SEED,
-        sector="b2b_saas",
+        sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
         last_round=FundingRound(date=date(2025, 6, 1), pre_money_valuation=Decimal("10000000"), amount_raised=Decimal("3000000")),
     )

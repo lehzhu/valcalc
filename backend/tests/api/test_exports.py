@@ -2,7 +2,7 @@ def _setup_valuation(client):
     resp = client.post("/api/v1/companies", json={
         "name": "Export Test Co",
         "stage": "series_a",
-        "sector": "b2b_saas",
+        "sector": "information_technology",
         "revenue_status": "growing_revenue",
         "current_revenue": "5000000",
         "created_by": "Alice",
@@ -34,12 +34,12 @@ def test_get_benchmarks(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "sectors" in data
-    assert "b2b_saas" in data["sectors"]
+    assert "information_technology" in data["sectors"]
 
 
 def test_get_sectors(client):
     resp = client.get("/api/v1/benchmarks/sectors")
     assert resp.status_code == 200
     sectors = resp.json()
-    assert len(sectors) == 10
-    assert any(s["key"] == "b2b_saas" for s in sectors)
+    assert len(sectors) == 11
+    assert any(s["key"] == "information_technology" for s in sectors)
