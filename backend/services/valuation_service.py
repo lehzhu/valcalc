@@ -147,6 +147,7 @@ def run_company_valuation(
         explanation=explanation,
         method_results=_serialize_method_results(result.method_results),
         audit_trail=audit_trail,
+        reasoning_trace=_make_json_safe(result.reasoning_trace) if result.reasoning_trace else None,
         created_by=created_by,
     )
     db.add(valuation)

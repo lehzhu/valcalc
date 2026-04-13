@@ -8,7 +8,7 @@ from valuation_engine.rules import recommend_methods
 from valuation_engine.methods.last_round import LastRoundAdjusted
 from valuation_engine.methods.comps import ComparableCompanyMultiples
 from valuation_engine.methods.dcf import DiscountedCashFlow
-from valuation_engine.explanation import generate_explanation
+from valuation_engine.explanation import generate_explanation, generate_reasoning_trace
 from valuation_engine.audit_trail import build_audit_trail
 
 
@@ -68,7 +68,7 @@ def run_valuation(company: CompanyInput, valuation_date: date | None = None) -> 
         method_results=method_results,
     )
 
-    return ValuationResult(
+    val_result = ValuationResult(
         primary_method=primary.method,
         fair_value=primary.value,
         fair_value_low=primary.value_low,
@@ -77,6 +77,11 @@ def run_valuation(company: CompanyInput, valuation_date: date | None = None) -> 
         method_results=method_results,
         audit_trail=audit_trail,
     )
+
+    # Step 7: Generate structured reasoning trace
+    val_result.reasoning_trace = generate_reasoning_trace(val_result)
+
+    return val_result
 
 
 def run_single_method(

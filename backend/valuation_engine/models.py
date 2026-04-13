@@ -130,3 +130,4 @@ class ValuationResult:
     explanation: str
     method_results: list[MethodResult]
     audit_trail: AuditTrail
+    reasoning_trace: dict = field(default_factory=dict)

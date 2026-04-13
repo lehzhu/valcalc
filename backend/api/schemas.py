@@ -152,6 +152,7 @@ class ValuationOut(BaseModel):
     explanation: str
     method_results: list[dict]
     audit_trail: dict
+    reasoning_trace: dict | None = None
     overrides: dict | None
     created_by: str
     created_at: datetime

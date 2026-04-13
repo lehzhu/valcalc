@@ -60,6 +60,7 @@ class Valuation(Base):
     explanation: Mapped[str] = mapped_column(Text)
     method_results: Mapped[dict] = mapped_column(JSON)
     audit_trail: Mapped[dict] = mapped_column(JSON)
+    reasoning_trace: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     overrides: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_by: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

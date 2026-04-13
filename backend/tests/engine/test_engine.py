@@ -129,3 +129,48 @@ def test_run_single_method_insufficient_data():
     )
     result = run_single_method(MethodType.DCF, company)
     assert result is None
+
+
+def test_reasoning_trace_present():
+    """Reasoning trace should be included in engine output with all sections."""
+    company = CompanyInput(
+        name="Trace Test",
+        stage=CompanyStage.SERIES_A,
+        sector="information_technology",
+        revenue_status=RevenueStatus.GROWING_REVENUE,
+        current_revenue=Decimal("5000000"),
+        last_round=FundingRound(
+            date=date(2025, 6, 1),
+            pre_money_valuation=Decimal("30000000"),
+            amount_raised=Decimal("10000000"),
+        ),
+    )
+    result = run_valuation(company, valuation_date=date(2026, 1, 1))
+
+    trace = result.reasoning_trace
+    assert trace is not None
+    assert "conclusion" in trace
+    assert "calibration_steps" in trace
+    assert "assumptions_table" in trace
+    assert "data_sources" in trace
+    assert "method_selection" in trace
+
+    # Conclusion has required fields
+    assert trace["conclusion"]["fair_value_display"] != ""
+    assert trace["conclusion"]["range"] != ""
+
+    # Steps are in reverse order (conclusion first)
+    steps = trace["calibration_steps"]
+    assert len(steps) >= 3
+    assert steps[0]["description"] == "Calibrated fair value conclusion"
+
+    # Each step has equation and working separated
+    for step in steps:
+        assert "equation" in step
+        assert "working" in step
+        assert "result" in step
+
+    # Assumptions have citations
+    for a in trace["assumptions_table"]:
+        assert a["source"] is not None
+        assert a["source"] != ""

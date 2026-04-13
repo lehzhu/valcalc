@@ -110,6 +110,45 @@ export interface AuditTrail {
   timestamp: string
 }
 
+export interface ReasoningConclusion {
+  fair_value: string
+  fair_value_display: string
+  range: string
+  range_low: string
+  range_high: string
+  method: string
+  method_display: string
+  summary: string
+}
+
+export interface CalibrationStep {
+  order: number
+  description: string
+  equation: string
+  working: Record<string, string>
+  result: string
+}
+
+export interface ReasoningAssumption {
+  name: string
+  value: string
+  rationale: string
+  source: string
+  overrideable: boolean
+}
+
+export interface ReasoningTrace {
+  conclusion: ReasoningConclusion
+  calibration_steps: CalibrationStep[]
+  assumptions_table: ReasoningAssumption[]
+  data_sources: { name: string; version: string; effective_date: string }[]
+  method_selection: {
+    primary: string
+    rationale: string
+    secondary_methods: { method: string; value: string; range: string }[]
+  }
+}
+
 export interface Valuation {
   id: string
   company_id: string
@@ -121,6 +160,7 @@ export interface Valuation {
   explanation: string
   method_results: MethodResult[]
   audit_trail: AuditTrail
+  reasoning_trace?: ReasoningTrace
   overrides?: Record<string, unknown>
   created_by: string
   created_at: string
