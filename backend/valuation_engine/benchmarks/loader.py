@@ -28,11 +28,12 @@ def load_benchmarks(version: str | None = None) -> dict:
 
 
 def get_sector_benchmarks(sector_key: str, version: str | None = None) -> dict:
-    """Get benchmark data for a specific sector. Raises KeyError if not found."""
+    """Get benchmark data for a specific sector. Raises ValueError if not found."""
     data = load_benchmarks(version)
     sectors = data["sectors"]
     if sector_key not in sectors:
-        raise KeyError(f"{sector_key}")
+        valid = ", ".join(sorted(sectors.keys()))
+        raise ValueError(f"Unknown sector '{sector_key}'. Valid sectors: {valid}")
     return sectors[sector_key]
 
 

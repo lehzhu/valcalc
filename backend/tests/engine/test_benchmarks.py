@@ -19,7 +19,7 @@ def test_get_sector_benchmarks_known_sector():
 
 
 def test_get_sector_benchmarks_unknown_sector():
-    with pytest.raises(KeyError, match="unknown_sector"):
+    with pytest.raises(ValueError, match="Unknown sector 'unknown_sector'"):
         get_sector_benchmarks("unknown_sector")
 
 

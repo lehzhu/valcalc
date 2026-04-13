@@ -42,11 +42,23 @@ def _company_to_engine_input(company: Company) -> CompanyInput:
             discount_rate=company.projections.get("discount_rate"),
         )
 
+    try:
+        stage = CompanyStage(company.stage)
+    except ValueError:
+        valid = [s.value for s in CompanyStage]
+        raise ValueError(f"Invalid stage '{company.stage}'. Must be one of: {', '.join(valid)}")
+
+    try:
+        revenue_status = RevenueStatus(company.revenue_status)
+    except ValueError:
+        valid = [s.value for s in RevenueStatus]
+        raise ValueError(f"Invalid revenue_status '{company.revenue_status}'. Must be one of: {', '.join(valid)}")
+
     return CompanyInput(
         name=company.name,
-        stage=CompanyStage(company.stage),
+        stage=stage,
         sector=company.sector,
-        revenue_status=RevenueStatus(company.revenue_status),
+        revenue_status=revenue_status,
         last_round=last_round,
         current_revenue=company.current_revenue,
         cap_table=company.cap_table,
