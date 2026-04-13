@@ -10,13 +10,15 @@ Structured, auditable valuation engine for private portfolio companies. Built fo
 
 Or manually: `cd backend && pip install -e ".[dev]" && python scripts/seed_data.py && uvicorn api.main:app --port 8000`, then `cd frontend && npm install && npm run dev`. Requires Python 3.12+, Node 18+. Uses SQLite (no external DB).
 
+**CLI usage** requires `pip install -e ".[dev]"` in the backend directory first (installs openpyxl, weasyprint, etc.).
+
 ## Approach
 
 **Primary method: Recent Financing + Calibration** (ASC 820-10-35). Starts from the last arm's-length transaction price and calibrates forward through 6 individually-traced steps: anchor valuation → time decay → financial performance → sector movement → qualitative factors → cap table notes.
 
 **Cross-check: Comparable multiples** when revenue data is available. If no round data exists, comps becomes primary.
 
-All benchmark data is **mocked** (flagged as `v2025-Q1` in source citations). In production, these would come from PitchBook or S&P Capital IQ.
+All benchmark data is **mocked** (latest version auto-selected; currently `v2026-Q2`). In production, these would come from PitchBook or S&P Capital IQ. Run `python cli.py refresh` to pull live data from EDGAR, Finnhub, and Alpha Vantage when API keys are configured.
 
 ## Key Design Decisions
 
@@ -36,6 +38,7 @@ python cli.py example | python cli.py value -         # generate + value example
 python cli.py value company.json --json | jq '.'      # raw JSON output
 python cli.py template                                # download batch template
 python cli.py test                                    # run test suite
+python cli.py refresh                                 # refresh benchmarks from live market APIs
 ```
 
 ## Testing
