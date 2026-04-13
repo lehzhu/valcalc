@@ -1,16 +1,17 @@
-"""CLI entry point for the valuation engine.
-
-Accepts a JSON file (or stdin) with company data, runs the valuation,
-and prints the full reasoning trace to stdout.
+#!/usr/bin/env python3
+"""ValCalc CLI — value private companies from the command line.
 
 Usage:
-    python cli.py company.json
-    python cli.py --example          # print example input JSON
-    cat company.json | python cli.py -
+    python cli.py demo                           # run the built-in example
+    python cli.py batch portfolio.xlsx            # value an entire portfolio
+    python cli.py value company.json              # value a single company (JSON)
+    python cli.py template                        # save batch template to disk
+    python cli.py test                            # run the test suite
 """
 import argparse
 import json
 import sys
+import os
 from datetime import date
 from decimal import Decimal
 
@@ -21,36 +22,124 @@ from valuation_engine.models import (
 from valuation_engine.engine import run_valuation
 
 
-EXAMPLE_INPUT = {
-    "name": "Acme AI",
-    "stage": "series_a",
-    "sector": "information_technology",
-    "revenue_status": "growing_revenue",
-    "current_revenue": "5000000",
-    "last_round": {
-        "date": "2025-06-01",
-        "pre_money_valuation": "30000000",
-        "amount_raised": "10000000",
-        "lead_investor": "Sequoia Capital"
-    },
-    "financials": {
-        "current_revenue": "5000000",
-        "revenue_at_last_round": "2500000",
-        "gross_margin": "0.72",
-        "runway_months": 18
-    },
-    "qualitative": {
-        "board_plan_status": "exceeded",
-        "customer_concentration": "low",
-        "regulatory_risk": "low"
-    },
-    "cap_table": {
-        "security_type": "Series A Preferred",
-        "liquidation_preferences": "1x non-participating",
-        "option_pool_pct": "15"
-    },
-}
+# ── Colors ──────────────────────────────────────────────────────────────
 
+def _c(code: int, text: str) -> str:
+    if not sys.stdout.isatty():
+        return text
+    return f"\033[{code}m{text}\033[0m"
+
+def _bold(t: str) -> str: return _c(1, t)
+def _dim(t: str) -> str: return _c(2, t)
+def _green(t: str) -> str: return _c(32, t)
+def _yellow(t: str) -> str: return _c(33, t)
+def _red(t: str) -> str: return _c(31, t)
+def _cyan(t: str) -> str: return _c(36, t)
+
+
+# ── Formatting ──────────────────────────────────────────────────────────
+
+def _fmtcur(value) -> str:
+    n = Decimal(str(value))
+    if n >= 1_000_000_000: return f"${n / 1_000_000_000:.1f}B"
+    if n >= 1_000_000: return f"${n / 1_000_000:.1f}M"
+    if n >= 1_000: return f"${n / 1_000:.0f}K"
+    return f"${n:.0f}"
+
+
+def print_result(result, name: str = "") -> None:
+    """Pretty-print a valuation result to stdout."""
+    trace = result.reasoning_trace
+    conclusion = trace["conclusion"]
+    ms = trace["method_selection"]
+
+    # Header
+    print()
+    if name:
+        print(f"  {_bold(name)}")
+    print(f"  {_bold(_green(conclusion['fair_value_display']))}  {_dim(conclusion['range'])}")
+    print(f"  {_dim('Method:')} {conclusion['method_display']}")
+    print()
+
+    # Cross-checks
+    if ms.get("secondary_methods"):
+        print(f"  {_dim('Cross-checks:')}")
+        for sm in ms["secondary_methods"]:
+            label = sm['method'].replace('_', ' ').title()
+            print(f"    {label:.<25s} {sm['range']}")
+        print()
+
+    # Steps (reversed: conclusion first)
+    print(f"  {_bold('Calibration Steps')}")
+    for step in trace["calibration_steps"]:
+        desc = step['description']
+        res = step['result']
+        if "conclusion" in desc.lower():
+            print(f"    {_green('→')} {desc}: {_bold(res)}")
+        else:
+            print(f"    {_dim('→')} {desc}: {res}")
+    print()
+
+    # Assumptions
+    if trace.get("assumptions_table"):
+        print(f"  {_bold('Assumptions')}")
+        for a in trace["assumptions_table"]:
+            flag = _dim(" [overrideable]") if a["overrideable"] else ""
+            print(f"    {a['name']}: {_yellow(a['value'])}{flag}")
+            print(f"      {_dim(a['rationale'])}")
+        print()
+
+    # Sources
+    if trace.get("data_sources"):
+        print(f"  {_dim('Sources:')}")
+        for s in trace["data_sources"]:
+            print(f"    {_dim('•')} {s['name']} ({s['version']})")
+        print()
+
+
+def print_batch_summary(results: list[dict]) -> None:
+    """Print a summary table from batch results."""
+    ok = [r for r in results if r["status"] == "ok"]
+    err = [r for r in results if r["status"] == "error"]
+
+    # Find max name length
+    max_name = max((len(r.get("company_name", "")) for r in results), default=20)
+    max_name = min(max_name, 35)
+
+    print()
+    print(f"  {_bold(f'{len(ok)}/{len(results)} companies valued')}")
+    if err:
+        print(f"  {_red(f'{len(err)} failed')}")
+    print()
+
+    # Header
+    hdr = f"  {'Company':<{max_name}}  {'Fair Value':>12}  {'Method':<15}  {'Cross-checks'}"
+    print(_dim(hdr))
+    print(_dim("  " + "─" * (max_name + 50)))
+
+    for r in results:
+        name = r.get("company_name", "?")[:max_name]
+        if r["status"] == "ok":
+            fv = _fmtcur(r["fair_value"])
+            method = r.get("primary_method", "").replace("_", " ").title()
+            methods_run = r.get("methods_run", [])
+            cross = ", ".join(
+                m["method"].replace("_", " ").title()
+                for m in methods_run
+                if m["method"] != r.get("primary_method")
+            ) or _dim("none")
+            print(f"  {name:<{max_name}}  {_green(f'{fv:>12}')}  {method:<15}  {cross}")
+        else:
+            print(f"  {name:<{max_name}}  {_red('ERROR'):>12}  {_red(r.get('error', '?')[:40])}")
+
+    if ok:
+        total = sum(Decimal(r["fair_value"]) for r in ok)
+        print(_dim("  " + "─" * (max_name + 50)))
+        print(f"  {'Total':<{max_name}}  {_bold(_green(f'{_fmtcur(total):>12}'))}")
+    print()
+
+
+# ── Parsing ─────────────────────────────────────────────────────────────
 
 def parse_company_input(data: dict) -> CompanyInput:
     """Parse a JSON dict into a CompanyInput dataclass."""
@@ -96,119 +185,71 @@ def parse_company_input(data: dict) -> CompanyInput:
     )
 
 
-def format_reasoning_trace(trace: dict) -> str:
-    """Format the reasoning trace as readable text output."""
-    lines: list[str] = []
-    sep = "=" * 72
+# ── Demo data ───────────────────────────────────────────────────────────
 
-    # ── Conclusion (shown first) ─────────────────────────────
-    conclusion = trace["conclusion"]
-    lines.append(sep)
-    lines.append(f"  FAIR VALUE ESTIMATE: {conclusion['fair_value_display']}")
-    lines.append(f"  Range: {conclusion['range']}")
-    lines.append(f"  Method: {conclusion['method_display']}")
-    lines.append(sep)
-    lines.append("")
-    lines.append(f"  {conclusion['summary']}")
-    lines.append("")
-
-    # ── Method Selection ─────────────────────────────────────
-    ms = trace["method_selection"]
-    lines.append("─── Method Selection " + "─" * 51)
-    lines.append(f"  Primary: {ms['primary'].replace('_', ' ').title()}")
-    lines.append(f"  Rationale: {ms['rationale']}")
-    if ms["secondary_methods"]:
-        for sm in ms["secondary_methods"]:
-            lines.append(f"  Cross-check: {sm['method'].replace('_', ' ').title()} → {sm['range']}")
-    lines.append("")
-
-    # ── Calibration Steps (reversed: conclusion → anchor) ────
-    lines.append("─── Calibration Steps (conclusion → anchor) " + "─" * 27)
-    for step in trace["calibration_steps"]:
-        lines.append(f"")
-        lines.append(f"  Step {step['order']}: {step['description']}")
-        lines.append(f"    Equation:  {step['equation']}")
-        for k, v in step["working"].items():
-            lines.append(f"    {k:.<30s} {v}")
-        lines.append(f"    ────────────────────────────────")
-        lines.append(f"    Result:    {step['result']}")
-
-    lines.append("")
-
-    # ── Assumptions ──────────────────────────────────────────
-    lines.append("─── Assumptions " + "─" * 56)
-    for a in trace["assumptions_table"]:
-        override_flag = " [overrideable]" if a["overrideable"] else " [fixed]"
-        lines.append(f"  {a['name']}: {a['value']}{override_flag}")
-        lines.append(f"    Rationale: {a['rationale']}")
-        lines.append(f"    Source: {a['source']}")
-    lines.append("")
-
-    # ── Data Sources ─────────────────────────────────────────
-    lines.append("─── Data Sources " + "─" * 55)
-    for s in trace["data_sources"]:
-        lines.append(f"  • {s['name']} ({s['version']}, effective {s['effective_date']})")
-    lines.append("")
-    lines.append(sep)
-
-    return "\n".join(lines)
+DEMO_COMPANY = {
+    "name": "Acme AI",
+    "stage": "series_a",
+    "sector": "information_technology",
+    "revenue_status": "growing_revenue",
+    "current_revenue": "5000000",
+    "last_round": {
+        "date": "2025-06-01",
+        "pre_money_valuation": "30000000",
+        "amount_raised": "10000000",
+        "lead_investor": "Sequoia Capital"
+    },
+    "financials": {
+        "current_revenue": "5000000",
+        "revenue_at_last_round": "2500000",
+        "gross_margin": "0.72",
+        "runway_months": 18
+    },
+    "qualitative": {
+        "board_plan_status": "exceeded",
+        "customer_concentration": "low",
+        "regulatory_risk": "low"
+    },
+    "cap_table": {
+        "security_type": "Series A Preferred",
+        "liquidation_preferences": "1x non-participating",
+        "option_pool_pct": "15"
+    },
+}
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Run valuation engine on company data (JSON input)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Example:\n  python cli.py --example > company.json\n  python cli.py company.json",
-    )
-    parser.add_argument("input", nargs="?", default="-",
-                        help="Path to JSON file, or '-' for stdin")
-    parser.add_argument("--example", action="store_true",
-                        help="Print example input JSON and exit")
-    parser.add_argument("--json", action="store_true",
-                        help="Output raw JSON instead of formatted text")
-    parser.add_argument("--valuation-date", type=str, default=None,
-                        help="Valuation date (YYYY-MM-DD), defaults to today")
-    args = parser.parse_args()
+# ── Commands ────────────────────────────────────────────────────────────
 
-    if args.example:
-        json.dump(EXAMPLE_INPUT, sys.stdout, indent=2)
-        sys.stdout.write("\n")
-        return
+def cmd_demo(_args) -> None:
+    """Run the built-in example company through the valuation engine."""
+    company = parse_company_input(DEMO_COMPANY)
+    result = run_valuation(company)
+    print_result(result, name="Acme AI")
 
-    # Read input
+
+def cmd_value(args) -> None:
+    """Value a single company from a JSON file."""
     if args.input == "-":
         data = json.load(sys.stdin)
     else:
         with open(args.input) as f:
             data = json.load(f)
 
-    # Parse
     company = parse_company_input(data)
-
-    # Run
-    val_date = date.fromisoformat(args.valuation_date) if args.valuation_date else date.today()
+    val_date = date.fromisoformat(args.date) if args.date else date.today()
     result = run_valuation(company, valuation_date=val_date)
 
     if args.json:
-        # JSON output: include everything
-        from valuation_engine.explanation import _format_currency
         import dataclasses
 
         def _json_safe(obj):
-            if obj is None:
-                return None
-            if isinstance(obj, dict):
-                return {k: _json_safe(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [_json_safe(v) for v in obj]
-            if isinstance(obj, Decimal):
-                return str(obj)
-            if hasattr(obj, "isoformat"):
-                return obj.isoformat()
-            if hasattr(obj, "value") and not isinstance(obj, (str, int, float, bool)):
-                return obj.value
-            if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-                return _json_safe(dataclasses.asdict(obj))
+            if obj is None: return None
+            if isinstance(obj, dict): return {k: _json_safe(v) for k, v in obj.items()}
+            if isinstance(obj, list): return [_json_safe(v) for v in obj]
+            if isinstance(obj, Decimal): return str(obj)
+            if hasattr(obj, "isoformat"): return obj.isoformat()
+            if hasattr(obj, "value") and not isinstance(obj, (str, int, float, bool)): return obj.value
+            if dataclasses.is_dataclass(obj) and not isinstance(obj, type): return _json_safe(dataclasses.asdict(obj))
             return obj
 
         output = {
@@ -224,8 +265,125 @@ def main():
         json.dump(output, sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:
-        # Formatted text output
-        print(format_reasoning_trace(result.reasoning_trace))
+        print_result(result, name=data.get("name", ""))
+
+
+def cmd_batch(args) -> None:
+    """Value an entire portfolio from an Excel or CSV file."""
+    from services.batch_service import parse_batch_file, run_batch_valuation, generate_batch_template
+    from db.session import engine, Base
+    from sqlalchemy.orm import Session as SASession
+
+    Base.metadata.create_all(engine)
+
+    with open(args.file, "rb") as f:
+        content = f.read()
+
+    companies = parse_batch_file(args.file, content)
+    if not companies:
+        print(_red("  No companies found in file."))
+        return
+
+    print(f"  {_dim(f'Parsed {len(companies)} companies from')} {os.path.basename(args.file)}")
+    print(f"  {_dim('Running valuations...')}")
+
+    with SASession(engine) as db:
+        results = run_batch_valuation(
+            db=db,
+            companies_data=companies,
+            created_by=args.user or "CLI",
+            valuation_date=date.fromisoformat(args.date) if args.date else None,
+        )
+
+    if args.json:
+        json.dump({"total": len(results), "results": results}, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print_batch_summary(results)
+
+
+def cmd_template(args) -> None:
+    """Save the batch import template to disk."""
+    from services.batch_service import generate_batch_template
+    out = args.output or "valcalc-batch-template.xlsx"
+    content = generate_batch_template()
+    with open(out, "wb") as f:
+        f.write(content)
+    print(f"  Template saved to {_green(out)}")
+
+
+def cmd_test(_args) -> None:
+    """Run the test suite."""
+    import subprocess
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/", "-v", "--tb=short"],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+    )
+    sys.exit(result.returncode)
+
+
+def cmd_example(_args) -> None:
+    """Print example JSON input."""
+    json.dump(DEMO_COMPANY, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
+# ── Main ────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="valcalc",
+        description="ValCalc — value private companies from the command line",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""examples:
+  python cli.py demo                        Run built-in example
+  python cli.py batch portfolio.xlsx        Value a full portfolio
+  python cli.py value company.json          Value one company (JSON)
+  python cli.py value company.json --json   Output raw JSON
+  python cli.py template                    Download batch template
+  python cli.py example                     Print example JSON input
+  python cli.py test                        Run test suite""",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    # demo
+    p_demo = sub.add_parser("demo", help="Run built-in example valuation")
+    p_demo.set_defaults(func=cmd_demo)
+
+    # value
+    p_val = sub.add_parser("value", help="Value a single company from JSON")
+    p_val.add_argument("input", nargs="?", default="-", help="JSON file path, or '-' for stdin")
+    p_val.add_argument("--json", action="store_true", help="Output raw JSON")
+    p_val.add_argument("--date", type=str, default=None, help="Valuation date (YYYY-MM-DD)")
+    p_val.set_defaults(func=cmd_value)
+
+    # batch
+    p_batch = sub.add_parser("batch", help="Value a portfolio from Excel/CSV")
+    p_batch.add_argument("file", help="Excel (.xlsx) or CSV file path")
+    p_batch.add_argument("--json", action="store_true", help="Output raw JSON")
+    p_batch.add_argument("--date", type=str, default=None, help="Valuation date (YYYY-MM-DD)")
+    p_batch.add_argument("--user", type=str, default=None, help="Created-by name (default: CLI)")
+    p_batch.set_defaults(func=cmd_batch)
+
+    # template
+    p_tmpl = sub.add_parser("template", help="Save batch template Excel to disk")
+    p_tmpl.add_argument("-o", "--output", type=str, help="Output path (default: valcalc-batch-template.xlsx)")
+    p_tmpl.set_defaults(func=cmd_template)
+
+    # example
+    p_ex = sub.add_parser("example", help="Print example company JSON")
+    p_ex.set_defaults(func=cmd_example)
+
+    # test
+    p_test = sub.add_parser("test", help="Run the test suite")
+    p_test.set_defaults(func=cmd_test)
+
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        return
+
+    args.func(args)
 
 
 if __name__ == "__main__":
