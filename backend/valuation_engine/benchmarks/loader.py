@@ -52,7 +52,26 @@ def get_benchmark_version(version: str | None = None) -> str:
     return data["metadata"]["version"]
 
 
+_ipo_cache: dict | None = None
+
+
+def load_ipo_stats() -> dict:
+    """Load pre-computed IPO performance statistics derived from Early_ipo_data_final.XLS."""
+    global _ipo_cache
+    if _ipo_cache is not None:
+        return _ipo_cache
+
+    path = _DATA_DIR / "ipo_performance_stats.json"
+    if not path.exists():
+        return {}
+
+    with open(path) as f:
+        _ipo_cache = json.load(f)
+    return _ipo_cache
+
+
 def clear_cache():
     """Clear cached benchmark data. Used after benchmark refresh."""
-    global _cache
+    global _cache, _ipo_cache
     _cache = None
+    _ipo_cache = None

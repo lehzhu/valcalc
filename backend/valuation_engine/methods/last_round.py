@@ -15,9 +15,9 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
 from valuation_engine.models import (
-    CompanyInput, MethodResult, MethodType, ComputationStep, Assumption, Source,
+    CompanyInput, CompanyStage, MethodResult, MethodType, ComputationStep, Assumption, Source,
 )
-from valuation_engine.benchmarks.loader import get_sector_benchmarks, get_benchmark_version
+from valuation_engine.benchmarks.loader import get_sector_benchmarks, get_benchmark_version, load_ipo_stats
 
 
 def _fmt(value: Decimal) -> str:
@@ -109,11 +109,40 @@ class LastRoundAdjusted:
             },
             output=_fmt(running_value),
         ))
+        time_source = "ASC 820-10-35: calibration to transaction price should reflect passage of time"
+
+        # Enrich with IPO underperformance evidence for stale rounds
+        if months_elapsed > self.DECAY_FREE_MONTHS:
+            ipo = load_ipo_stats()
+            if ipo:
+                ipo_meta = ipo.get("metadata", {})
+                ar_data = ipo.get("post_ipo_abnormal_returns", {})
+                # Map elapsed time to closest anniversary year
+                years_elapsed = months_elapsed // 12
+                year_key = f"year_{min(max(years_elapsed, 2), 6)}"
+                ar = ar_data.get(year_key, {})
+                if ar:
+                    time_rationale += (
+                        f". Empirical support: even public post-IPO equities show "
+                        f"{ar['median']:+.1%} median abnormal return by year {min(max(years_elapsed, 2), 6)} "
+                        f"(n={ar['n']:,}, {ar['pct_negative']:.0%} negative). "
+                        f"Private companies with stale round pricing face compounding information asymmetry"
+                    )
+                time_source += (
+                    f"; Private Capital Research Institute Early IPO Data "
+                    f"({ipo_meta.get('year_range', '1935-1972')}, {ipo_meta.get('total_ipos', 3507):,} IPOs)"
+                )
+                sources.append(Source(
+                    name="Private Capital Research Institute — Early IPO Performance Data",
+                    version=f"{ipo_meta.get('total_ipos', 3507)} IPOs, {ipo_meta.get('year_range', '1935-1972')}",
+                    effective_date=valuation_date,
+                ))
+
         assumptions.append(Assumption(
             name="Time decay rate",
             value=f"-{self.QUARTERLY_DECAY_RATE * 100}%/quarter after {self.DECAY_FREE_MONTHS}mo",
             rationale=time_rationale,
-            source="ASC 820-10-35: calibration to transaction price should reflect passage of time",
+            source=time_source,
             overrideable=True,
         ))
 
