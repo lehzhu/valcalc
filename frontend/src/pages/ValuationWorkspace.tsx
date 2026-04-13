@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { getCompany, updateCompany, runMethod, runValuation, overrideValuation, listSectors } from '../api/client'
+import { getCompany, updateCompany, runMethod, runValuation, overrideValuation, listSectors, listValuations, exportXlsxUrl, exportJsonUrl } from '../api/client'
 import type { ParsedImport } from '../api/client'
 import type { Company, MethodResultOut, BenchmarkSector, FundingRound, CompanyCreate } from '../types'
 import DocumentUpload from '../components/DocumentUpload'
@@ -80,6 +80,8 @@ function WaterfallChart({ steps }: { steps: MethodResultOut['steps'] }) {
   let prev = 0
   for (const step of steps) {
     if (step.description.includes('(noted') || step.description.includes('Calibrated fair value')) continue
+    // Only include dollar-denominated steps — skip multiples (e.g., "12.0x")
+    if (!step.output.includes('$')) continue
     const value = parseOutputValue(step.output)
     if (value === 0) continue
     bars.push({ label: step.description.replace(/:.*/,'').trim(), value, delta: bars.length === 0 ? value : value - prev })
@@ -206,6 +208,29 @@ export default function ValuationWorkspace() {
           security_type: cap.security_type ?? '', liq_pref: cap.liquidation_preferences ?? '',
           option_pool: cap.option_pool_pct ?? '', index_movement: ext.index_movement_pct ?? '',
         })
+        // Load latest valuation ID (for export buttons)
+        listValuations(companyId).then(vs => {
+          if (vs.length) setLatestValuationId(vs[0].id)
+        }).catch(() => {})
+        // Auto-run method previews if data is sufficient
+        const hasLastRound = !!(c.last_round_date && c.last_round_valuation)
+        const hasComps = !!c.current_revenue
+        const previews: Promise<void>[] = []
+        if (hasLastRound) {
+          previews.push(
+            runMethod(companyId, 'last_round_adjusted').then(r => {
+              if (r) setMethodResults(prev => ({ ...prev, last_round_adjusted: r }))
+            }).catch(() => {})
+          )
+        }
+        if (hasComps) {
+          previews.push(
+            runMethod(companyId, 'comps').then(r => {
+              if (r) setMethodResults(prev => ({ ...prev, comps: r }))
+            }).catch(() => {})
+          )
+        }
+        return Promise.all(previews)
       })
       .finally(() => setLoading(false))
   }, [companyId])
@@ -508,10 +533,10 @@ export default function ValuationWorkspace() {
                   <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{fmt(result.value_low)} &ndash; {fmt(result.value_high)} range</p>
                 </div>
                 {latestValuationId && (
-                  <Link to={`/valuations/${latestValuationId}`}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors">
-                    View Report &rarr;
-                  </Link>
+                  <div className="flex gap-1.5">
+                    <a href={exportXlsxUrl(latestValuationId)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] transition-colors">Excel</a>
+                    <a href={exportJsonUrl(latestValuationId)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] transition-colors">JSON</a>
+                  </div>
                 )}
               </div>
             </div>
@@ -619,6 +644,7 @@ export default function ValuationWorkspace() {
                         </p>
                       )}
                       <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 line-clamp-2">{a.rationale}</p>
+                      {a.source && <p className="text-[9px] text-[var(--color-text-tertiary)] italic mt-0.5 line-clamp-1">Source: {a.source}</p>}
                     </div>
                   )
                 })}
@@ -630,6 +656,24 @@ export default function ValuationWorkspace() {
           {Object.keys(methodResults).length >= 2 && (
             <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
               <ComparisonBars results={methodResults} />
+            </div>
+          )}
+
+          {/* Data sources */}
+          {hasResult && result.sources.length > 0 && (
+            <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+              <h4 className={sectionTitle}>Data Sources</h4>
+              <div className="space-y-1.5">
+                {result.sources.map((s, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <span className="mt-0.5 w-1 h-1 rounded-full bg-[var(--color-text-tertiary)] flex-shrink-0" />
+                    <div>
+                      <span className="font-medium text-[var(--color-text-secondary)]">{s.name}</span>
+                      <span className="text-[var(--color-text-tertiary)]"> ({s.version}, effective {s.effective_date})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

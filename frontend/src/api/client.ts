@@ -128,5 +128,22 @@ export async function uploadBatch(file: File, createdBy?: string): Promise<Batch
   return resp.json()
 }
 
+// Batch operations
+export const batchExportUrl = (companyIds?: string[]) => {
+  const params = companyIds?.length ? `?company_ids=${companyIds.join(',')}` : ''
+  return `${BASE}/batch/export${params}`
+}
+
+export interface BatchRevalueRequest {
+  company_ids: string[]
+  created_by: string
+  valuation_date?: string
+  overrides?: Record<string, number>
+}
+
+export async function batchRevalue(data: BatchRevalueRequest): Promise<BatchResult> {
+  return request<BatchResult>('/batch/revalue', { method: 'POST', body: JSON.stringify(data) })
+}
+
 // Benchmarks
 export const listSectors = () => request<BenchmarkSector[]>('/benchmarks/sectors')

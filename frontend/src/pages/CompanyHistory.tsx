@@ -65,7 +65,7 @@ export default function CompanyHistory() {
       ) : (
         <div className="space-y-3">
           {valuations.map(v => (
-            <Link key={v.id} to={`/valuations/${v.id}`} className="block bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4 hover:border-[var(--color-primary-light)] transition-colors" style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <Link key={v.id} to={`/companies/${id}/workspace`} className="block bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4 hover:border-[var(--color-primary-light)] transition-colors" style={{ boxShadow: 'var(--shadow-sm)' }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono text-[var(--color-text-tertiary)]">v{v.version}</span>
