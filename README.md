@@ -10,8 +10,6 @@ Structured, auditable valuation engine for private portfolio companies. Built fo
 
 Or manually: `cd backend && pip install -e ".[dev]" && python scripts/seed_data.py && uvicorn api.main:app --port 8000`, then `cd frontend && npm install && npm run dev`. Requires Python 3.12+, Node 18+. Uses SQLite (no external DB).
 
-**CLI usage** requires `pip install -e ".[dev]"` in the backend directory first (installs openpyxl, weasyprint, etc.).
-
 ## Approach
 
 **Primary method: Recent Financing + Calibration** (ASC 820-10-35). Starts from the last arm's-length transaction price and calibrates forward through 6 individually-traced steps: anchor valuation → time decay → financial performance → sector movement → qualitative factors → cap table notes.
