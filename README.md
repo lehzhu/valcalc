@@ -28,7 +28,7 @@ The assignment asks for a single, well-engineered workflow. We chose calibration
 
 ## Key Design Decisions & Tradeoffs
 
-**Backend is the product.** The engine produces a complete `reasoning_trace` -- conclusion-first, with each calibration step showing the equation template and working numbers separately, plus citations on every assumption. This output is self-contained: the CLI (`python cli.py company.json`) produces the same audit-quality trace as the API, independent of any frontend.
+**Backend is the product.** The engine produces a complete `reasoning_trace` -- conclusion-first, with each calibration step showing the equation template and working numbers separately, plus citations on every assumption. This output is self-contained: the CLI (`python cli.py demo`) produces the same audit-quality trace as the API, independent of any frontend.
 
 **Batch-first intake.** The primary workflow is uploading a portfolio spreadsheet (one row per company) that triggers automated valuations across the entire portfolio. Single-company Excel import (5-sheet template) and manual entry are also supported. No wizard, no follow-up questions -- the system runs both methods on every company where data permits.
 
@@ -40,6 +40,12 @@ The assignment asks for a single, well-engineered workflow. We chose calibration
 
 **Overrideable assumptions with audit trail.** Any assumption marked `overrideable: true` can be adjusted. Overrides are tracked and persisted in the audit trail.
 
+### A note on data
+
+**All benchmark data is mocked.** Sector revenue multiples, growth rates, and trend factors in `backend/valuation_engine/benchmarks/data/` are realistic but synthetic. In production these would come from PitchBook, S&P Capital IQ, or PrivCo. The mock data is flagged in source citations (e.g., `Benchmark v2025-Q1`) so it's never mistaken for live market data.
+
+The three test portfolio files (`backend/tests/fixtures/batch_*.xlsx`) contain fictional companies with realistic financials. They exist to demonstrate the engine's behavior across stages, sectors, and edge cases -- not to represent real investments.
+
 ### Evolution & Process
 
 The system went through several intentional pivots during development:
@@ -50,9 +56,9 @@ The system went through several intentional pivots during development:
 
 3. **Switched from PostgreSQL/Docker to SQLite** to simplify setup. For an audit tool processing individual portfolios, SQLite is the right choice -- no infrastructure overhead, single-file database, trivially portable.
 
-4. **Pivoted to calibration-primary architecture.** After deeper analysis of ASC 820-10-35 and how auditors actually work, restructured so Recent Financing + Calibration is always primary when round data exists. Comps and DCF became optional cross-checks.
+4. **Pivoted to calibration-primary architecture.** After deeper analysis of ASC 820-10-35 and how auditors actually work, restructured so Recent Financing + Calibration is always primary when round data exists. Comps became a cross-check.
 
-5. **Expanded data model** from basic company fields to 5 structured categories (transaction/cap table, financials, forecast, qualitative, external mapping) that feed into the calibration steps.
+5. **Removed DCF entirely.** DCF projections introduce speculative assumptions that don't serve audit-grade work for early/mid-stage companies. Two deterministic methods (calibrated last round + market comps) are more defensible than three where one is noise.
 
 6. **Moved presentation logic to the backend.** The reversed reasoning trace (conclusion first, equation vs working distinction) was initially a frontend rendering concern. Moved it to the engine as `reasoning_trace` so the API and CLI produce the same structured output.
 
@@ -76,48 +82,121 @@ npm run dev
 
 Requires Python 3.12+ and Node 18+. SQLite (no external database needed).
 
-## Usage
+## CLI
 
-### Web UI
-
-1. **Dashboard** -- upload a portfolio spreadsheet (drag-and-drop) to batch-value all companies at once; or add manually
-2. **Workspace** -- view calibration trace, run cross-check methods (Last Round + Comps), adjust assumptions with auto-save
-3. **Export** -- PDF memo, Excel workbook, or JSON
-
-### CLI
+The fastest way to use ValCalc. No server needed -- runs the engine directly.
 
 ```bash
 cd backend && source .venv/bin/activate
 
-# Print example input JSON
-python cli.py --example > company.json
+# Run the built-in demo (Acme AI, Series A SaaS)
+python cli.py demo
 
-# Run valuation and print formatted reasoning trace
-python cli.py company.json
+# Value a full portfolio from Excel
+python cli.py batch tests/fixtures/batch_25_portfolio.xlsx
 
-# Run valuation and output raw JSON (for piping to other tools)
-python cli.py company.json --json
+# Value a single company from JSON
+python cli.py example > company.json    # generate example input
+python cli.py value company.json        # run it
 
-# Specify valuation date
-python cli.py company.json --valuation-date 2026-01-01
+# Pipe JSON through stdin
+python cli.py example | python cli.py value -
+
+# Raw JSON output (for piping to jq, scripts, etc.)
+python cli.py value company.json --json
+python cli.py value company.json --json | jq '.reasoning_trace.conclusion'
+
+# Batch with JSON output
+python cli.py batch portfolio.xlsx --json | jq '.results[] | {name: .company_name, value: .fair_value}'
+
+# Save the batch template to fill out yourself
+python cli.py template
+
+# Run the test suite
+python cli.py test
 ```
 
-### API
+### Reading the output
+
+The CLI prints a structured audit trace for each company. Here's what each section means:
+
+**Header** -- the fair value estimate, range (low-high based on sensitivity), and which method was primary.
+
+**Cross-checks** -- if both Last Round and Comps ran, the secondary method's range appears here. A large gap between methods is a signal to investigate, not a bug.
+
+**Calibration Steps** -- the full derivation from anchor to conclusion, in reverse order (conclusion first, anchor last). Each step shows what was applied and the running total. Read bottom-to-top to follow the math forward.
+
+**Assumptions** -- every input the engine used, with `[overrideable]` flags. Each shows a rationale (why this value) and source (where it came from). Override these via the `--json` flag + API `overrides` parameter.
+
+**Sources** -- data provenance. `v2025-Q1` means mocked benchmark data. `Round dated YYYY-MM-DD` traces to the company's financing history.
+
+### Batch output
+
+The batch command prints a summary table: company name, fair value, primary method, and which cross-checks ran. The total line is the sum of all fair values (aggregate portfolio NAV).
+
+Companies that fail valuation (e.g., missing required fields) show as `ERROR` with a reason.
+
+## Testing
 
 ```bash
-# Create company and run valuation
-curl -X POST http://localhost:8000/api/v1/companies -H "Content-Type: application/json" \
-  -d '{"name":"Acme","stage":"series_a","sector":"information_technology","revenue_status":"growing_revenue","current_revenue":"5000000","created_by":"auditor"}'
+cd backend && source .venv/bin/activate
 
+# Run all 58 tests
+python cli.py test
+# or equivalently:
+pytest tests/ -v
+
+# Run specific test modules
+pytest tests/engine/test_last_round.py -v     # calibration method
+pytest tests/engine/test_comps.py -v          # comparable multiples
+pytest tests/engine/test_engine.py -v         # full engine integration
+pytest tests/engine/test_rules.py -v          # method selection logic
+
+# Test batch import end-to-end via CLI
+python cli.py batch tests/fixtures/batch_10_companies.xlsx     # 10 companies, 8 sectors
+python cli.py batch tests/fixtures/batch_25_portfolio.xlsx     # full fund, $10.6B
+python cli.py batch tests/fixtures/batch_5_edge_cases.xlsx     # edge cases (pre-rev, stale, mega)
+
+# Smoke test: demo should print a full trace without errors
+python cli.py demo
+
+# Smoke test: example JSON round-trips cleanly
+python cli.py example | python cli.py value - --json | jq '.fair_value'
+```
+
+### What the test fixtures cover
+
+| File | Companies | Purpose |
+|------|-----------|---------|
+| `batch_10_companies.xlsx` | 10 | Diverse sectors (SaaS, biotech, fintech, climate, consumer, media, robotics, food). Mix of healthy and struggling companies. |
+| `batch_25_portfolio.xlsx` | 25 | Full VC fund simulation. Stage distribution: 20% seed, 32% Series A, 28% Series B, 20% late. Real investor names, varied cap table complexity. |
+| `batch_5_edge_cases.xlsx` | 5 | Pre-revenue SAFE with no financials, stale 2022 round with 4-month runway, $340M late-stage with participating preferred, high-risk/high-growth, 500% hyper-growth from tiny base. |
+
+All fixture data is **synthetic** -- fictional companies with realistic financials. The files were generated by `backend/tests/fixtures/generate_batch_fixtures.py` and can be regenerated.
+
+## API
+
+Start the server with `./start.sh` or `uvicorn api.main:app --port 8000`.
+
+```bash
 # Batch import: upload portfolio spreadsheet (creates companies + runs valuations)
 curl -X POST http://localhost:8000/api/v1/import/batch -F "file=@portfolio.xlsx"
 
-# Single-company data import
-curl -X POST http://localhost:8000/api/v1/import/parse -F "file=@company_data.xlsx"
+# Create a single company
+curl -X POST http://localhost:8000/api/v1/companies -H "Content-Type: application/json" \
+  -d '{"name":"Acme","stage":"series_a","sector":"information_technology","revenue_status":"growing_revenue","current_revenue":"5000000","created_by":"auditor"}'
 
-# Run valuation (returns reasoning_trace, method_results, audit_trail)
+# Run valuation on a company
 curl -X POST http://localhost:8000/api/v1/companies/{id}/valuations \
   -H "Content-Type: application/json" -d '{"created_by":"auditor"}'
+
+# Run valuation with assumption overrides
+curl -X POST http://localhost:8000/api/v1/companies/{id}/valuations \
+  -H "Content-Type: application/json" \
+  -d '{"created_by":"auditor","overrides":{"revenue_multiple":8.0,"dlom":0.15}}'
+
+# Get a valuation with full trace
+curl http://localhost:8000/api/v1/valuations/{id} | jq '.reasoning_trace'
 
 # Download templates
 curl http://localhost:8000/api/v1/import/batch-template -o batch-template.xlsx
@@ -131,19 +210,21 @@ Every valuation returns four required outputs:
 | Output | Location in API response |
 |--------|-------------------------|
 | **Estimated fair value** (numeric + range) | `fair_value`, `fair_value_low`, `fair_value_high` |
-| **Key inputs and assumptions** | `reasoning_trace.assumptions_table[]` with name, value, rationale |
+| **Key inputs and assumptions** | `reasoning_trace.assumptions_table[]` with name, value, rationale, source |
 | **Citations / data sources** | `reasoning_trace.data_sources[]` + each assumption's `source` field |
 | **Explanation of derivation** | `reasoning_trace.calibration_steps[]` (equation + working per step) |
+
+The `reasoning_trace` is the authoritative output. It's structured for both machine consumption (JSON) and human reading (CLI formatter). The frontend renders it, but the backend produces it -- the API and CLI are first-class interfaces, not wrappers around a UI.
 
 ## Stack
 
 **Backend:** Python, FastAPI, SQLAlchemy 2.0, Pydantic v2, SQLite
 **Frontend:** React 19, TypeScript, Tailwind CSS v4, Vite
-**Tests:** 58 unit/integration tests (`cd backend && pytest tests/ -v`), 3 mock portfolio fixtures (10, 25, 5-edge-case companies)
+**Tests:** 58 unit/integration tests, 3 mock portfolio fixtures (10, 25, 5-edge-case companies)
 
 ## Extension
 
-- **Real benchmark data** -- current sector multiples are mock (flagged in source). Production would pull from PitchBook, S&P Capital IQ, or PrivCo.
+- **Real benchmark data** -- current sector multiples are mock (flagged in source as `v2025-Q1`). Production would pull from PitchBook, S&P Capital IQ, or PrivCo.
 - **Equity allocation (OPM/waterfall)** -- the engine notes cap table complexity but doesn't model option pricing or liquidation preference waterfalls. This is the gap between enterprise value and per-share fair value.
 - **Data integration** -- Netsuite, Carta, Microsoft Dynamics for automated portfolio data ingestion.
 - **Historical market index integration** -- replace static sector trend factors with actual index performance data (e.g., NASDAQ IT index movement since round date).
