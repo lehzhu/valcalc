@@ -42,7 +42,7 @@ export default function ValuationResults() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <Link to={`/companies/${valuation.company_id}/workspace`} className="text-xs text-[var(--color-primary)] hover:underline mb-1 inline-block">
+          <Link to={`/companies/${valuation.company_id}`} className="text-xs text-[var(--color-primary)] hover:underline mb-1 inline-block">
             &larr; {trail.input_snapshot.name as string}
           </Link>
           <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">Valuation Report</h1>

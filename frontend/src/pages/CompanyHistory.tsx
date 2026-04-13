@@ -133,6 +133,7 @@ function ValuationDetail({ valuation }: { valuation: Valuation }) {
           <p className="text-xs text-[var(--color-text-tertiary)]">v{valuation.version} &middot; {valuation.created_by}</p>
         </div>
         <div className="flex items-start justify-end gap-2">
+          <Link to={`/valuations/${valuation.id}`} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-indigo-50 transition-colors">View Report</Link>
           <a href={exportXlsxUrl(valuation.id)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] transition-colors">Excel</a>
           <a href={exportJsonUrl(valuation.id)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] transition-colors">JSON</a>
         </div>
