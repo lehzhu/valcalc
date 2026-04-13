@@ -49,7 +49,7 @@ export const runSensitivity = (companyId: string, data?: { valuation_date?: stri
   request<SensitivityResult>(`/companies/${companyId}/methods/dcf/sensitivity`, { method: 'POST', body: JSON.stringify(data ?? {}) })
 
 // Valuations
-export const runValuation = (companyId: string, data: { created_by: string; valuation_date?: string; method_weights?: Record<string, number> }) =>
+export const runValuation = (companyId: string, data: { created_by: string; valuation_date?: string; method_weights?: Record<string, number>; overrides?: Record<string, number> }) =>
   request<Valuation>(`/companies/${companyId}/valuations`, { method: 'POST', body: JSON.stringify(data) })
 export const listValuations = (companyId: string) =>
   request<ValuationListItem[]>(`/companies/${companyId}/valuations`)

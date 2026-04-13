@@ -12,7 +12,7 @@ from valuation_engine.explanation import generate_explanation, generate_reasonin
 from valuation_engine.audit_trail import build_audit_trail
 
 
-def run_valuation(company: CompanyInput, valuation_date: date | None = None) -> ValuationResult:
+def run_valuation(company: CompanyInput, valuation_date: date | None = None, overrides: dict | None = None) -> ValuationResult:
     """Run a complete valuation for a company. Returns result with full audit trail."""
     if valuation_date is None:
         valuation_date = date.today()
@@ -24,7 +24,7 @@ def run_valuation(company: CompanyInput, valuation_date: date | None = None) -> 
     method_results: list[MethodResult] = []
 
     for rec in recommendations:
-        result = _run_method(rec.method, company, valuation_date)
+        result = _run_method(rec.method, company, valuation_date, overrides=overrides)
         if result is not None:
             result.is_primary = rec.is_primary
             method_results.append(result)
@@ -66,6 +66,7 @@ def run_valuation(company: CompanyInput, valuation_date: date | None = None) -> 
         company=company,
         recommendations=recommendations,
         method_results=method_results,
+        overrides=[overrides] if overrides else None,
     )
 
     val_result = ValuationResult(
@@ -115,7 +116,10 @@ def _run_method(method_type: MethodType, company: CompanyInput, valuation_date: 
             or not any(p.ebitda and p.ebitda > 0 for p in company.projections.periods)
         ):
             return None
-        return DiscountedCashFlow().compute(company, valuation_date, overrides=overrides)
+        try:
+            return DiscountedCashFlow().compute(company, valuation_date, overrides=overrides)
+        except ValueError:
+            return None
 
     if method_type == MethodType.MANUAL:
         return None  # Manual is handled via override endpoint, not auto-run

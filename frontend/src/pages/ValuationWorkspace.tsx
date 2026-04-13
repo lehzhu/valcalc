@@ -248,9 +248,12 @@ export default function ValuationWorkspace() {
         setMethodResults(prev => ({ ...prev, [activeTab]: res }))
       }
 
-      // Also auto-save as a valuation
+      // Also auto-save as a valuation (with any overrides)
       const user = localStorage.getItem('vc-audit-user') || 'Auditor'
-      await runValuation(companyId, { created_by: user }).catch(() => {})
+      await runValuation(companyId, {
+        created_by: user,
+        overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+      }).catch(() => {})
 
       setAutoSaveStatus('saved')
       setTimeout(() => setAutoSaveStatus('idle'), 2000)

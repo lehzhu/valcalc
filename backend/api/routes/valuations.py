@@ -31,6 +31,7 @@ def create_valuation(company_id: UUID, body: ValuationRunRequest, db: Session = 
         created_by=body.created_by,
         valuation_date=body.valuation_date,
         method_weights=body.method_weights,
+        overrides=body.overrides,
     )
     return valuation
 
@@ -69,7 +70,10 @@ def run_method_preview(company_id: UUID, method: str, body: MethodRunRequest, db
 
     engine_input = _company_to_engine_input(company)
     overrides = {k: v for k, v in (body.overrides or {}).items()} if body.overrides else None
-    result = run_single_method(VALID_METHODS[method], engine_input, body.valuation_date, overrides=overrides)
+    try:
+        result = run_single_method(VALID_METHODS[method], engine_input, body.valuation_date, overrides=overrides)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     if result is None:
         raise HTTPException(status_code=422, detail=f"Insufficient data to run {method}. Check company inputs.")

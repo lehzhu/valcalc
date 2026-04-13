@@ -49,6 +49,13 @@ class DiscountedCashFlow:
         terminal_growth = Decimal(str(overrides.get("terminal_growth_rate", TERMINAL_GROWTH_RATE)))
         ebitda_fcf = Decimal(str(overrides.get("ebitda_to_fcf", EBITDA_TO_FCF)))
 
+        # Guard against division by zero in terminal value calculation
+        if discount_rate <= terminal_growth:
+            raise ValueError(
+                f"Discount rate ({discount_rate:.2%}) must exceed terminal growth rate ({terminal_growth:.2%}). "
+                f"Adjust WACC or terminal growth to produce a valid DCF."
+            )
+
         assumptions.extend([
             Assumption(name="Discount rate (WACC)", value=f"{discount_rate:.0%}", rationale=rate_source, overrideable=True),
             Assumption(name="EBITDA-to-FCF conversion", value=f"{ebitda_fcf:.0%}", rationale="Simplified: FCF ≈ 75% of EBITDA (accounts for capex and working capital)", overrideable=True),
@@ -87,6 +94,8 @@ class DiscountedCashFlow:
             inputs={"sum_pv_fcfs": _format_currency(sum_pv_fcfs), "pv_terminal": _format_currency(pv_terminal)}, output=_format_currency(enterprise_value)))
 
         def _compute_ev(rate, tg=terminal_growth):
+            if rate <= tg:
+                return enterprise_value  # Fall back to base if rate combo is invalid
             pv_sum = sum(fcf / (Decimal("1") + rate) ** (i + 1) for i, fcf in enumerate(fcfs))
             tv = final_fcf * (Decimal("1") + tg) / (rate - tg)
             return (pv_sum + tv / (Decimal("1") + rate) ** n).quantize(Decimal("1"), rounding=ROUND_HALF_UP)

@@ -109,6 +109,7 @@ class ValuationRunRequest(BaseModel):
     created_by: str
     valuation_date: date | None = None
     method_weights: dict[str, float] | None = None
+    overrides: dict[str, float] | None = None
 
 class MethodRunRequest(BaseModel):
     valuation_date: date | None = None
