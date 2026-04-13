@@ -148,6 +148,15 @@ def _parse_excel(content: bytes) -> dict[str, Any]:
         # Detect layout from headers
         headers = [str(c).strip().lower() if c is not None else "" for c in rows[0]]
 
+        # Batch/columnar layout (one row per company) — extract first company
+        if _is_batch_layout(headers):
+            from services.batch_service import parse_batch_file
+            companies, _ = parse_batch_file("upload.xlsx", content)
+            if companies:
+                result.update(companies[0])
+            wb.close()
+            return result
+
         if _is_projection_headers(headers):
             projections = _extract_projections_from_rows(headers, rows[1:])
             if projections:
@@ -182,6 +191,14 @@ def _parse_csv(content: bytes) -> dict[str, Any]:
 
     headers = [c.strip().lower() for c in rows[0]]
 
+    # Batch/columnar layout — extract first company
+    if _is_batch_layout(headers):
+        from services.batch_service import parse_batch_file
+        companies, _ = parse_batch_file("upload.csv", content)
+        if companies:
+            return companies[0]
+        return {}
+
     if _is_projection_headers(headers):
         projections = _extract_projections_from_rows(headers, [tuple(r) for r in rows[1:]])
         if projections:
@@ -197,8 +214,20 @@ def _parse_csv(content: bytes) -> dict[str, Any]:
 
 _PROJECTION_KEYWORDS = {"year", "revenue", "ebitda", "growth"}
 
+# Column headers that indicate a batch/columnar layout (one row per company)
+_BATCH_COLUMN_KEYWORDS = {
+    "company name", "stage", "sector", "revenue status",
+    "pre-money valuation", "amount raised", "last round date",
+}
+
 def _is_projection_headers(headers: list[str]) -> bool:
     return len(set(headers) & _PROJECTION_KEYWORDS) >= 2
+
+
+def _is_batch_layout(headers: list[str]) -> bool:
+    """Detect a columnar/batch layout (multiple recognized column headers)."""
+    matches = sum(1 for h in headers if h in _BATCH_COLUMN_KEYWORDS)
+    return matches >= 3
 
 
 def _is_kv_layout(headers: list[str]) -> bool:
