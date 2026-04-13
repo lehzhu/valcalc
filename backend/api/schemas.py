@@ -125,18 +125,6 @@ class MethodResultOut(BaseModel):
     sources: list[dict]
     is_primary: bool = False
 
-class SensitivityRequest(BaseModel):
-    valuation_date: date | None = None
-    wacc_steps: list[float] | None = None
-    tg_steps: list[float] | None = None
-
-class SensitivityOut(BaseModel):
-    wacc_values: list[float]
-    tg_values: list[float]
-    grid: list[list[str]]
-    base_wacc: float
-    base_tg: float
-
 class OverrideRequest(BaseModel):
     fair_value: Decimal
     justification: str
@@ -180,3 +168,25 @@ class BenchmarkSector(BaseModel):
 class BenchmarkOut(BaseModel):
     metadata: dict
     sectors: dict
+
+
+# --- Batch ---
+
+class BatchResultItem(BaseModel):
+    company_name: str
+    company_id: str | None = None
+    status: str
+    fair_value: str | None = None
+    fair_value_low: str | None = None
+    fair_value_high: str | None = None
+    primary_method: str | None = None
+    explanation: str | None = None
+    methods_run: list[dict] | None = None
+    valuation_id: str | None = None
+    error: str | None = None
+
+class BatchResult(BaseModel):
+    total: int
+    succeeded: int
+    failed: int
+    results: list[BatchResultItem]

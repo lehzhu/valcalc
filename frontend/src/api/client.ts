@@ -37,17 +37,6 @@ export const deleteCompany = (id: string) =>
 export const runMethod = (companyId: string, method: string, data?: { valuation_date?: string; overrides?: Record<string, number> }) =>
   request<MethodResultOut>(`/companies/${companyId}/methods/${method}`, { method: 'POST', body: JSON.stringify(data ?? {}) })
 
-// Sensitivity
-export interface SensitivityResult {
-  wacc_values: number[]
-  tg_values: number[]
-  grid: string[][]
-  base_wacc: number
-  base_tg: number
-}
-export const runSensitivity = (companyId: string, data?: { valuation_date?: string }) =>
-  request<SensitivityResult>(`/companies/${companyId}/methods/dcf/sensitivity`, { method: 'POST', body: JSON.stringify(data ?? {}) })
-
 // Valuations
 export const runValuation = (companyId: string, data: { created_by: string; valuation_date?: string; method_weights?: Record<string, number>; overrides?: Record<string, number> }) =>
   request<Valuation>(`/companies/${companyId}/valuations`, { method: 'POST', body: JSON.stringify(data) })
@@ -92,6 +81,39 @@ export async function uploadDocument(file: File): Promise<ParsedImport> {
 }
 
 export const importTemplateUrl = `${BASE}/import/template`
+export const batchTemplateUrl = `${BASE}/import/batch-template`
+
+export interface BatchResultItem {
+  company_name: string
+  company_id?: string
+  status: string
+  fair_value?: string
+  fair_value_low?: string
+  fair_value_high?: string
+  primary_method?: string
+  explanation?: string
+  methods_run?: { method: string; value: string; value_low: string; value_high: string }[]
+  valuation_id?: string
+  error?: string
+}
+
+export interface BatchResult {
+  total: number
+  succeeded: number
+  failed: number
+  results: BatchResultItem[]
+}
+
+export async function uploadBatch(file: File): Promise<BatchResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const resp = await fetch(`${BASE}/import/batch`, { method: 'POST', body: form })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({ detail: 'Upload failed' }))
+    throw new Error(body.detail || `Batch upload failed (${resp.status})`)
+  }
+  return resp.json()
+}
 
 // Benchmarks
 export const listSectors = () => request<BenchmarkSector[]>('/benchmarks/sectors')

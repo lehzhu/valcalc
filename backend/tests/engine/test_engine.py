@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from valuation_engine.models import (
     CompanyInput, CompanyStage, RevenueStatus, MethodType,
-    FundingRound, FinancialProjections, ProjectionPeriod,
+    FundingRound,
 )
 from valuation_engine.engine import run_valuation, run_single_method
 
@@ -52,16 +52,11 @@ def test_series_c_company_no_round_gets_comps():
         sector="financials",
         revenue_status=RevenueStatus.SCALED_REVENUE,
         current_revenue=Decimal("20000000"),
-        projections=FinancialProjections(periods=[
-            ProjectionPeriod(year=2026, revenue=Decimal("30000000"), ebitda=Decimal("5000000")),
-            ProjectionPeriod(year=2027, revenue=Decimal("42000000"), ebitda=Decimal("10000000")),
-            ProjectionPeriod(year=2028, revenue=Decimal("55000000"), ebitda=Decimal("16000000")),
-        ]),
     )
     result = run_valuation(company, valuation_date=date(2026, 1, 1))
 
     assert result.primary_method == MethodType.COMPS
-    assert len(result.method_results) >= 2  # Comps + DCF
+    assert len(result.method_results) >= 1  # Comps
 
 
 def test_no_data_falls_back_to_manual():
@@ -101,22 +96,17 @@ def test_audit_trail_completeness():
     assert trail.timestamp is not None
 
 
-def test_run_single_method_dcf():
+def test_run_single_method_comps():
     company = CompanyInput(
-        name="DCF Test",
-        stage=CompanyStage.SERIES_C_PLUS,
-        sector="financials",
-        revenue_status=RevenueStatus.SCALED_REVENUE,
-        current_revenue=Decimal("20000000"),
-        projections=FinancialProjections(periods=[
-            ProjectionPeriod(year=2026, revenue=Decimal("30000000"), ebitda=Decimal("5000000")),
-            ProjectionPeriod(year=2027, revenue=Decimal("42000000"), ebitda=Decimal("10000000")),
-            ProjectionPeriod(year=2028, revenue=Decimal("55000000"), ebitda=Decimal("16000000")),
-        ]),
+        name="Comps Test",
+        stage=CompanyStage.SERIES_A,
+        sector="information_technology",
+        revenue_status=RevenueStatus.GROWING_REVENUE,
+        current_revenue=Decimal("5000000"),
     )
-    result = run_single_method(MethodType.DCF, company, valuation_date=date(2026, 1, 1))
+    result = run_single_method(MethodType.COMPS, company, valuation_date=date(2026, 1, 1))
     assert result is not None
-    assert result.method == MethodType.DCF
+    assert result.method == MethodType.COMPS
     assert result.value > 0
 
 
@@ -127,7 +117,7 @@ def test_run_single_method_insufficient_data():
         sector="information_technology",
         revenue_status=RevenueStatus.PRE_REVENUE,
     )
-    result = run_single_method(MethodType.DCF, company)
+    result = run_single_method(MethodType.COMPS, company)
     assert result is None
 
 

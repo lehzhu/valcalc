@@ -23,7 +23,6 @@ class RevenueStatus(Enum):
 class MethodType(Enum):
     LAST_ROUND_ADJUSTED = "last_round_adjusted"
     COMPS = "comps"
-    DCF = "dcf"
     MANUAL = "manual"
 
 

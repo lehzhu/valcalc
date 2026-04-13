@@ -25,11 +25,11 @@ def test_last_round_explanation():
     assert "round" in text.lower() or "last" in text.lower()
 
 
-def test_dcf_explanation():
+def test_manual_explanation():
     text = generate_explanation(
-        method=MethodType.DCF,
-        fair_value=Decimal("120000000"),
+        method=MethodType.MANUAL,
+        fair_value=Decimal("50000000"),
         sector="financials",
-        key_inputs={"discount_rate": "22%", "projection_years": "5"},
+        key_inputs={},
     )
-    assert "dcf" in text.lower() or "cash flow" in text.lower() or "discounted" in text.lower()
+    assert "manual" in text.lower() or "auditor" in text.lower()

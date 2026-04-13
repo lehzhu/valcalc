@@ -4,7 +4,6 @@ import type { MethodResultOut } from '../types'
 const METHOD_LABELS: Record<string, string> = {
   last_round_adjusted: 'Last Round',
   comps: 'Comps',
-  dcf: 'DCF',
 }
 
 function formatCurrency(value: string | number): string {

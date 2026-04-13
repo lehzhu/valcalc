@@ -5,7 +5,7 @@ import type { Company, ValuationListItem } from '../types'
 import ValueTrendLine from '../components/ValueTrendLine'
 import { formatLabel } from '../utils/labels'
 
-const METHOD_LABELS: Record<string, string> = { last_round_adjusted: 'Last Round', comps: 'Comps', dcf: 'DCF', manual: 'Manual', weighted_blend: 'Weighted Blend' }
+const METHOD_LABELS: Record<string, string> = { last_round_adjusted: 'Last Round', comps: 'Comps', manual: 'Manual', weighted_blend: 'Weighted Blend' }
 
 function formatCurrency(value: string): string {
   const num = parseFloat(value)

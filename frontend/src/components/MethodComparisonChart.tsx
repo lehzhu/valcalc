@@ -1,7 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import type { MethodResult } from '../types'
 
-const METHOD_LABELS: Record<string, string> = { last_round_adjusted: 'Last Round', comps: 'Comps', dcf: 'DCF', manual: 'Manual' }
+const METHOD_LABELS: Record<string, string> = { last_round_adjusted: 'Last Round', comps: 'Comps', manual: 'Manual' }
 const COLORS = ['#4f46e5', '#818cf8', '#a5b4fc', '#c7d2fe']
 
 export default function MethodComparisonChart({ results }: { results: MethodResult[] }) {

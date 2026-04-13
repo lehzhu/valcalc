@@ -2,13 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getCompany, updateCompany, runMethod, runValuation, listSectors } from '../api/client'
 import type { ParsedImport } from '../api/client'
-import type { Company, MethodResultOut, BenchmarkSector, FundingRound, ProjectionPeriod, CompanyCreate } from '../types'
+import type { Company, MethodResultOut, BenchmarkSector, FundingRound, CompanyCreate } from '../types'
 import DocumentUpload from '../components/DocumentUpload'
 
 const METHOD_TABS = [
   { key: 'last_round_adjusted', label: 'Last Round' },
   { key: 'comps', label: 'Comps' },
-  { key: 'dcf', label: 'DCF' },
 ] as const
 
 type TabKey = typeof METHOD_TABS[number]['key']
@@ -33,9 +32,6 @@ function parseAssumptionValue(value: string): number | null {
 
 function getOverrideKey(name: string): string | null {
   const map: Record<string, string> = {
-    'Discount rate (WACC)': 'discount_rate',
-    'Terminal growth rate': 'terminal_growth_rate',
-    'EBITDA-to-FCF conversion': 'ebitda_to_fcf',
     'Revenue multiple': 'revenue_multiple',
     'DLOM (illiquidity discount)': 'dlom',
     'Time decay rate': 'time_decay_rate',
@@ -110,12 +106,10 @@ function MethodComparisonBars({ results }: { results: Record<string, MethodResul
   const colors: Record<string, string> = {
     last_round_adjusted: 'bg-indigo-500',
     comps: 'bg-emerald-500',
-    dcf: 'bg-amber-500',
   }
   const labels: Record<string, string> = {
     last_round_adjusted: 'Last Round',
     comps: 'Comps',
-    dcf: 'DCF',
   }
 
   return (
@@ -331,8 +325,7 @@ export default function ValuationWorkspace() {
   const result = methodResults[activeTab]
   const hasResult = !!result
   const hasSufficientData = activeTab === 'last_round_adjusted' ? !!(editRoundDate && editPreMoney) :
-    activeTab === 'comps' ? !!editRevenue :
-    activeTab === 'dcf' ? !!(company.projections as { periods?: ProjectionPeriod[] } | undefined)?.periods?.length : false
+    activeTab === 'comps' ? !!editRevenue : false
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm bg-[var(--color-surface)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] focus:border-transparent"
   const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1"

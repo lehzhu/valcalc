@@ -7,7 +7,6 @@ from valuation_engine.models import (
 from valuation_engine.rules import recommend_methods
 from valuation_engine.methods.last_round import LastRoundAdjusted
 from valuation_engine.methods.comps import ComparableCompanyMultiples
-from valuation_engine.methods.dcf import DiscountedCashFlow
 from valuation_engine.explanation import generate_explanation, generate_reasoning_trace
 from valuation_engine.audit_trail import build_audit_trail
 
@@ -109,18 +108,6 @@ def _run_method(method_type: MethodType, company: CompanyInput, valuation_date: 
             return None
         return ComparableCompanyMultiples().compute(company, valuation_date, overrides=overrides)
 
-    if method_type == MethodType.DCF:
-        if (
-            company.projections is None
-            or len(company.projections.periods) < 2
-            or not any(p.ebitda and p.ebitda > 0 for p in company.projections.periods)
-        ):
-            return None
-        try:
-            return DiscountedCashFlow().compute(company, valuation_date, overrides=overrides)
-        except ValueError:
-            return None
-
     if method_type == MethodType.MANUAL:
         return None  # Manual is handled via override endpoint, not auto-run
 
@@ -148,13 +135,5 @@ def _extract_key_inputs(primary: MethodResult, company: CompanyInput) -> dict[st
                 inputs["post_money"] = step.output
             if "time" in step.description.lower():
                 inputs["months_elapsed"] = step.inputs.get("months_elapsed", "N/A")
-
-    elif primary.method == MethodType.DCF:
-        for assumption in primary.assumptions:
-            if "discount" in assumption.name.lower():
-                inputs["discount_rate"] = assumption.value
-                break
-        if company.projections:
-            inputs["projection_years"] = str(len(company.projections.periods))
 
     return inputs

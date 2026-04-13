@@ -15,7 +15,7 @@ ValCalc implements **Recent Financing + Calibration** as the primary valuation m
 5. **Qualitative** -- board plan status, customer concentration, regulatory risk
 6. **Cap table notes** -- liquidation preferences, option pools, SAFEs (noted; OPM not modeled)
 
-Comps (comparable company multiples) and DCF are available as optional cross-checks when data supports them, but the calibration method is always primary when round data exists.
+Comparable company multiples (comps) serve as a cross-check when revenue data is available. When no round data exists, comps becomes the primary method. DCF was intentionally excluded -- it requires projection assumptions that introduce more noise than signal for early/mid-stage companies and doesn't match how auditors typically approach VC portfolios.
 
 ### Why this method?
 
@@ -30,7 +30,7 @@ The assignment asks for a single, well-engineered workflow. We chose calibration
 
 **Backend is the product.** The engine produces a complete `reasoning_trace` -- conclusion-first, with each calibration step showing the equation template and working numbers separately, plus citations on every assumption. This output is self-contained: the CLI (`python cli.py company.json`) produces the same audit-quality trace as the API, independent of any frontend.
 
-**Batch intake, not interactive questions.** The system accepts all company data at once -- via JSON payload, Excel upload (5-sheet template covering Transaction, Financials, Forecast, Qualitative, External Mapping), or CSV. The parser auto-detects layouts and routes fields into structured JSON blobs. No wizard, no follow-up questions.
+**Batch-first intake.** The primary workflow is uploading a portfolio spreadsheet (one row per company) that triggers automated valuations across the entire portfolio. Single-company Excel import (5-sheet template) and manual entry are also supported. No wizard, no follow-up questions -- the system runs both methods on every company where data permits.
 
 **Conservative by design.** Time decay is one-directional (no appreciation), DLOM always applies, WACC defaults high by stage, benchmarks use medians not optimistic percentiles. This matches audit practice where overstatement risk matters more than precision.
 
@@ -80,10 +80,9 @@ Requires Python 3.12+ and Node 18+. SQLite (no external database needed).
 
 ### Web UI
 
-1. **Dashboard** -- view all companies and their latest valuations
-2. **New Valuation** -- create a company (or import from Excel/CSV), select stage, sector, revenue status
-3. **Workspace** -- view calibration trace, run cross-check methods, adjust assumptions
-4. **Export** -- PDF memo, Excel workbook, or JSON
+1. **Dashboard** -- upload a portfolio spreadsheet (drag-and-drop) to batch-value all companies at once; or add manually
+2. **Workspace** -- view calibration trace, run cross-check methods (Last Round + Comps), adjust assumptions with auto-save
+3. **Export** -- PDF memo, Excel workbook, or JSON
 
 ### CLI
 
@@ -110,15 +109,19 @@ python cli.py company.json --valuation-date 2026-01-01
 curl -X POST http://localhost:8000/api/v1/companies -H "Content-Type: application/json" \
   -d '{"name":"Acme","stage":"series_a","sector":"information_technology","revenue_status":"growing_revenue","current_revenue":"5000000","created_by":"auditor"}'
 
-# Upload Excel for batch data import
+# Batch import: upload portfolio spreadsheet (creates companies + runs valuations)
+curl -X POST http://localhost:8000/api/v1/import/batch -F "file=@portfolio.xlsx"
+
+# Single-company data import
 curl -X POST http://localhost:8000/api/v1/import/parse -F "file=@company_data.xlsx"
 
 # Run valuation (returns reasoning_trace, method_results, audit_trail)
 curl -X POST http://localhost:8000/api/v1/companies/{id}/valuations \
   -H "Content-Type: application/json" -d '{"created_by":"auditor"}'
 
-# Download import template
-curl http://localhost:8000/api/v1/import/template -o template.xlsx
+# Download templates
+curl http://localhost:8000/api/v1/import/batch-template -o batch-template.xlsx
+curl http://localhost:8000/api/v1/import/template -o single-company-template.xlsx
 ```
 
 ## Output Structure
@@ -136,7 +139,7 @@ Every valuation returns four required outputs:
 
 **Backend:** Python, FastAPI, SQLAlchemy 2.0, Pydantic v2, SQLite
 **Frontend:** React 19, TypeScript, Tailwind CSS v4, Vite
-**Tests:** 65 unit/integration tests (`cd backend && pytest tests/ -v`)
+**Tests:** 58 unit/integration tests (`cd backend && pytest tests/ -v`), 3 mock portfolio fixtures (10, 25, 5-edge-case companies)
 
 ## Extension
 

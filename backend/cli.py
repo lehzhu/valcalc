@@ -49,13 +49,6 @@ EXAMPLE_INPUT = {
         "liquidation_preferences": "1x non-participating",
         "option_pool_pct": "15"
     },
-    "projections": {
-        "periods": [
-            {"year": 2026, "revenue": "8000000", "ebitda": "1000000"},
-            {"year": 2027, "revenue": "14000000", "ebitda": "3000000"},
-            {"year": 2028, "revenue": "22000000", "ebitda": "6000000"}
-        ]
-    }
 }
 
 

@@ -39,15 +39,6 @@ def generate_explanation(
             f"adjusted for time elapsed and {sector_display} sector market conditions."
         )
 
-    if method == MethodType.DCF:
-        discount_rate = key_inputs.get("discount_rate", "N/A")
-        years = key_inputs.get("projection_years", "N/A")
-        return (
-            f"Valued at {value_str} using a discounted cash flow analysis. "
-            f"Projected free cash flows over {years} years discounted at {discount_rate}, "
-            f"plus terminal value. Sector: {sector_display}."
-        )
-
     if method == MethodType.MANUAL:
         return (
             f"Fair value of {value_str} determined by auditor manual assessment. "
