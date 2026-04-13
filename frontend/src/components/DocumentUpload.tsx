@@ -11,23 +11,33 @@ export default function DocumentUpload({ onParsed, compact }: Props) {
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
-  const [parsed, setParsed] = useState<ParsedImport | null>(null)
+  const [pending, setPending] = useState<ParsedImport | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback(async (file: File) => {
     setUploading(true)
     setError('')
-    setParsed(null)
+    setPending(null)
     try {
       const data = await uploadDocument(file)
-      setParsed(data)
-      onParsed(data)
+      setPending(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
     }
-  }, [onParsed])
+  }, [])
+
+  const confirmImport = useCallback(() => {
+    if (pending) {
+      onParsed(pending)
+      setPending(null)
+    }
+  }, [pending, onParsed])
+
+  const cancelImport = useCallback(() => {
+    setPending(null)
+  }, [])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -42,28 +52,38 @@ export default function DocumentUpload({ onParsed, compact }: Props) {
     e.target.value = ''
   }
 
-  const fieldCount = parsed ? Object.keys(parsed).length : 0
-  const projCount = parsed?.projections?.periods?.length ?? 0
+  const fieldCount = pending ? Object.keys(pending).length : 0
+  const projCount = pending?.projections?.periods?.length ?? 0
 
   if (compact) {
     return (
-      <div className="flex items-center gap-3">
-        <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFileSelect} className="hidden" />
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-light)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-50"
-        >
-          {uploading ? 'Parsing...' : 'Import from file'}
-        </button>
-        {parsed && (
-          <span className="text-xs text-emerald-600 font-medium">
-            Imported {fieldCount} field{fieldCount !== 1 ? 's' : ''}
-            {projCount > 0 && ` + ${projCount} projection year${projCount !== 1 ? 's' : ''}`}
-          </span>
+      <div>
+        <div className="flex items-center gap-3">
+          <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFileSelect} className="hidden" />
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-light)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-50"
+          >
+            {uploading ? 'Parsing...' : 'Import from file'}
+          </button>
+          {error && <span className="text-xs text-[var(--color-danger)]">{error}</span>}
+        </div>
+
+        {/* Confirmation panel */}
+        {pending && (
+          <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 max-w-lg">
+            <h4 className="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-2">Review imported fields before applying</h4>
+            <ImportPreview data={pending} />
+            <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-amber-200">
+              <button onClick={cancelImport} className="px-3 py-1.5 rounded-lg text-xs text-[var(--color-text-tertiary)] hover:bg-amber-100">Discard</button>
+              <button onClick={confirmImport} className="px-4 py-1.5 rounded-lg text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors">
+                Apply {fieldCount} field{fieldCount !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </div>
         )}
-        {error && <span className="text-xs text-[var(--color-danger)]">{error}</span>}
       </div>
     )
   }
@@ -98,19 +118,16 @@ export default function DocumentUpload({ onParsed, compact }: Props) {
         <p className="mt-2 text-sm text-[var(--color-danger)]">{error}</p>
       )}
 
-      {parsed && (
-        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <p className="text-sm font-medium text-emerald-800 mb-2">
-            Extracted {fieldCount} field{fieldCount !== 1 ? 's' : ''}
-            {projCount > 0 && ` + ${projCount} projection year${projCount !== 1 ? 's' : ''}`}
-          </p>
-          <div className="space-y-0.5 text-xs text-emerald-700">
-            {parsed.name && <p>Company: {parsed.name}</p>}
-            {parsed.stage && <p>Stage: {parsed.stage}</p>}
-            {parsed.sector && <p>Sector: {parsed.sector}</p>}
-            {parsed.current_revenue && <p>Revenue: ${Number(parsed.current_revenue).toLocaleString()}</p>}
-            {parsed.last_round && <p>Last round: ${Number(parsed.last_round.pre_money_valuation).toLocaleString()} on {parsed.last_round.date}</p>}
-            {projCount > 0 && <p>Projections: {parsed.projections!.periods.map(p => p.year).join(', ')}</p>}
+      {pending && (
+        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
+          <h4 className="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-2">Review imported fields before applying</h4>
+          <ImportPreview data={pending} />
+          <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-amber-200">
+            <button onClick={cancelImport} className="px-3 py-1.5 rounded-lg text-xs text-[var(--color-text-tertiary)] hover:bg-amber-100">Discard</button>
+            <button onClick={confirmImport} className="px-4 py-1.5 rounded-lg text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors">
+              Apply {fieldCount} field{fieldCount !== 1 ? 's' : ''}
+              {projCount > 0 && ` + ${projCount} projection year${projCount !== 1 ? 's' : ''}`}
+            </button>
           </div>
         </div>
       )}
@@ -124,6 +141,65 @@ export default function DocumentUpload({ onParsed, compact }: Props) {
           Download template
         </a>
       </div>
+    </div>
+  )
+}
+
+function ImportPreview({ data }: { data: ParsedImport }) {
+  const rows: { label: string; value: string; category: string }[] = []
+
+  if (data.name) rows.push({ label: 'Company Name', value: data.name, category: 'Company' })
+  if (data.stage) rows.push({ label: 'Stage', value: data.stage.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), category: 'Company' })
+  if (data.sector) rows.push({ label: 'Sector', value: data.sector.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), category: 'Company' })
+  if (data.revenue_status) rows.push({ label: 'Revenue Status', value: data.revenue_status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), category: 'Company' })
+  if (data.current_revenue) rows.push({ label: 'Current Revenue', value: `$${Number(data.current_revenue).toLocaleString()}`, category: 'Company' })
+
+  if (data.last_round) {
+    rows.push({ label: 'Round Date', value: data.last_round.date, category: 'Funding Round' })
+    rows.push({ label: 'Pre-Money Valuation', value: `$${Number(data.last_round.pre_money_valuation).toLocaleString()}`, category: 'Funding Round' })
+    rows.push({ label: 'Amount Raised', value: `$${Number(data.last_round.amount_raised).toLocaleString()}`, category: 'Funding Round' })
+    if (data.last_round.lead_investor) rows.push({ label: 'Lead Investor', value: data.last_round.lead_investor, category: 'Funding Round' })
+  }
+
+  if (data.financials) {
+    for (const [k, v] of Object.entries(data.financials)) {
+      rows.push({ label: k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), value: String(v), category: 'Financials' })
+    }
+  }
+  if (data.qualitative) {
+    for (const [k, v] of Object.entries(data.qualitative)) {
+      rows.push({ label: k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), value: String(v), category: 'Qualitative' })
+    }
+  }
+  if (data.cap_table) {
+    for (const [k, v] of Object.entries(data.cap_table)) {
+      rows.push({ label: k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), value: String(v), category: 'Cap Table' })
+    }
+  }
+
+  if (data.projections?.periods?.length) {
+    rows.push({ label: 'Projections', value: `${data.projections.periods.length} years (${data.projections.periods.map(p => p.year).join(', ')})`, category: 'Projections' })
+  }
+
+  // Group by category
+  const categories: string[] = []
+  rows.forEach(r => { if (!categories.includes(r.category)) categories.push(r.category) })
+
+  return (
+    <div className="space-y-2">
+      {categories.map(cat => (
+        <div key={cat}>
+          <p className="text-[10px] font-medium text-amber-700 uppercase tracking-wider mb-1">{cat}</p>
+          <div className="space-y-0.5">
+            {rows.filter(r => r.category === cat).map((r, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className="text-amber-600 font-medium w-36 flex-shrink-0">{r.label}</span>
+                <span className="text-amber-900">{r.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

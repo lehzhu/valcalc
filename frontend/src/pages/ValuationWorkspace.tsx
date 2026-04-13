@@ -96,15 +96,15 @@ function WaterfallChart({ steps }: { steps: MethodResultOut['steps'] }) {
         const anchor = i === 0
         return (
           <div key={i} className="flex items-center gap-3">
-            <span className="text-[11px] text-[var(--color-text-tertiary)] w-32 text-right truncate">{bar.label}</span>
-            <div className="flex-1 h-6 relative">
+            <span className="text-[11px] text-[var(--color-text-tertiary)] w-40 text-right truncate flex-shrink-0">{bar.label}</span>
+            <div className="flex-1 h-6 relative min-w-0">
               <div className={`h-full rounded-r transition-all ${anchor ? 'bg-indigo-400' : bar.delta >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}`}
                 style={{ width: `${Math.max(pct, 2)}%` }} />
             </div>
-            <span className="text-[11px] font-medium text-[var(--color-text-secondary)] w-16 text-right">
+            <span className="text-[11px] font-medium text-[var(--color-text-secondary)] text-right whitespace-nowrap flex-shrink-0">
               {anchor ? '' : `${bar.delta >= 0 ? '+' : ''}${fmt(bar.delta)}`}
             </span>
-            <span className="text-[11px] font-semibold text-[var(--color-text-primary)] w-16 text-right">{fmt(bar.value)}</span>
+            <span className="text-[11px] font-semibold text-[var(--color-text-primary)] text-right whitespace-nowrap flex-shrink-0">{fmt(bar.value)}</span>
           </div>
         )
       })}
@@ -410,7 +410,7 @@ export default function ValuationWorkspace() {
     : !!fields.revenue
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
@@ -425,303 +425,299 @@ export default function ValuationWorkspace() {
         <DocumentUpload onParsed={handleImport} compact />
       </div>
 
-      <div className="grid grid-cols-[320px_1fr] gap-6">
-
-        {/* ── Left column: inputs ──────────────────────────── */}
-        <div className="space-y-5">
-
-          {/* Company details */}
-          <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
-            <h3 className={sectionTitle}>Company Details</h3>
-            <div className="space-y-3">
-              <div>
-                <label className={labelClass}>Stage</label>
-                <select value={fields.stage} onChange={updateField('stage')} className={inputClass}>
-                  {STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Sector</label>
-                <select value={fields.sector} onChange={updateField('sector')} className={inputClass}>
-                  {sectors.map(s => <option key={s.key} value={s.key}>{s.display_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Revenue Status</label>
-                <select value={fields.revenue_status} onChange={updateField('revenue_status')} className={inputClass}>
-                  {REVENUE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Current Annual Revenue ($)</label>
-                <input type="number" value={fields.revenue} onChange={updateField('revenue')} className={inputClass} placeholder="e.g., 5000000" />
-              </div>
+      {/* ── Inputs: horizontal strip ─────────────────────── */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {/* Company details */}
+        <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+          <h3 className={sectionTitle}>Company Details</h3>
+          <div className="space-y-2">
+            <div>
+              <label className={labelClass}>Stage</label>
+              <select value={fields.stage} onChange={updateField('stage')} className={inputClass}>
+                {STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Sector</label>
+              <select value={fields.sector} onChange={updateField('sector')} className={inputClass}>
+                {sectors.map(s => <option key={s.key} value={s.key}>{s.display_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Revenue Status</label>
+              <select value={fields.revenue_status} onChange={updateField('revenue_status')} className={inputClass}>
+                {REVENUE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Current Annual Revenue ($)</label>
+              <input type="number" value={fields.revenue} onChange={updateField('revenue')} className={inputClass} placeholder="e.g., 5000000" />
             </div>
           </div>
+        </div>
 
-          {/* Last funding round */}
-          <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
-            <h3 className={sectionTitle}>Last Funding Round</h3>
-            <div className="space-y-3">
-              <div>
-                <label className={labelClass}>Round Date</label>
-                <input type="date" value={fields.round_date} onChange={updateField('round_date')} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Pre-Money Valuation ($)</label>
-                <input type="number" value={fields.pre_money} onChange={updateField('pre_money')} className={inputClass} placeholder="30000000" />
-              </div>
-              <div>
-                <label className={labelClass}>Amount Raised ($)</label>
-                <input type="number" value={fields.amount_raised} onChange={updateField('amount_raised')} className={inputClass} placeholder="10000000" />
-              </div>
-              <div>
-                <label className={labelClass}>Lead Investor</label>
-                <input type="text" value={fields.lead_investor} onChange={updateField('lead_investor')} className={inputClass} placeholder="e.g., Sequoia" />
-              </div>
+        {/* Last funding round */}
+        <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+          <h3 className={sectionTitle}>Last Funding Round</h3>
+          <div className="space-y-2">
+            <div>
+              <label className={labelClass}>Round Date</label>
+              <input type="date" value={fields.round_date} onChange={updateField('round_date')} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Pre-Money Valuation ($)</label>
+              <input type="number" value={fields.pre_money} onChange={updateField('pre_money')} className={inputClass} placeholder="30000000" />
+            </div>
+            <div>
+              <label className={labelClass}>Amount Raised ($)</label>
+              <input type="number" value={fields.amount_raised} onChange={updateField('amount_raised')} className={inputClass} placeholder="10000000" />
+            </div>
+            <div>
+              <label className={labelClass}>Lead Investor</label>
+              <input type="text" value={fields.lead_investor} onChange={updateField('lead_investor')} className={inputClass} placeholder="e.g., Sequoia" />
             </div>
           </div>
+        </div>
 
-          {/* Calibration data (collapsible, optional) */}
-          <div className={`${cardClass} !p-0`} style={{ boxShadow: 'var(--shadow-sm)' }}>
-            <button onClick={() => setShowCalibration(s => !s)} className="w-full px-4 py-3 flex items-center justify-between text-left">
+        {/* Calibration data */}
+        <div className={`${cardClass} !p-0 self-start`} style={{ boxShadow: 'var(--shadow-sm)' }}>
+          <button onClick={() => setShowCalibration(s => !s)} className="w-full px-4 py-3 flex items-center justify-between text-left">
+            <div>
+              <h3 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">Calibration Data</h3>
+              <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Optional: financials, qualitative factors, cap table</p>
+            </div>
+            <span className="text-[10px] text-[var(--color-text-tertiary)]">{showCalibration ? 'Hide' : 'Show'}</span>
+          </button>
+          {showCalibration && (
+            <div className="px-4 pb-4 space-y-4">
+              <CalibSection title="Financials">
+                <LabeledInput label="Revenue at Last Round ($)" type="number" value={calib.revenue_at_round} onChange={updateCalib('revenue_at_round')} placeholder="e.g., 2500000" />
+                <LabeledInput label="Gross Margin (0-1)" type="number" step="0.01" value={calib.gross_margin} onChange={updateCalib('gross_margin')} placeholder="e.g., 0.72" />
+                <LabeledInput label="Runway (months)" type="number" value={calib.runway} onChange={updateCalib('runway')} placeholder="e.g., 18" />
+              </CalibSection>
+              <CalibSection title="Qualitative">
+                <LabeledSelect label="Board Plan Status" value={calib.board_plan} onChange={updateCalib('board_plan')} options={['', 'exceeded', 'met', 'missed']} labels={['--', 'Exceeded', 'Met', 'Missed']} />
+                <LabeledSelect label="Customer Concentration" value={calib.cust_concentration} onChange={updateCalib('cust_concentration')} options={['', 'low', 'moderate', 'high']} labels={['--', 'Low', 'Moderate', 'High']} />
+                <LabeledSelect label="Regulatory Risk" value={calib.reg_risk} onChange={updateCalib('reg_risk')} options={['', 'low', 'moderate', 'high']} labels={['--', 'Low', 'Moderate', 'High']} />
+              </CalibSection>
+              <CalibSection title="Cap Table">
+                <LabeledSelect label="Security Type" value={calib.security_type} onChange={updateCalib('security_type')}
+                  options={['', 'Common Stock', 'Series Seed Preferred', 'Series A Preferred', 'Series B Preferred', 'Series C Preferred', 'SAFE', 'Convertible Note']}
+                  labels={['--', 'Common Stock', 'Series Seed Preferred', 'Series A Preferred', 'Series B Preferred', 'Series C Preferred', 'SAFE', 'Convertible Note']} />
+                <LabeledSelect label="Liquidation Preferences" value={calib.liq_pref} onChange={updateCalib('liq_pref')}
+                  options={['', 'None', '1x non-participating', '1x participating', '1x participating (3x cap)', '2x non-participating', '2x participating']}
+                  labels={['--', 'None', '1x Non-Participating', '1x Participating', '1x Participating (3x Cap)', '2x Non-Participating', '2x Participating']} />
+                <LabeledInput label="Option Pool %" type="number" value={calib.option_pool} onChange={updateCalib('option_pool')} placeholder="e.g., 15" />
+              </CalibSection>
+              <CalibSection title="Market Data">
+                <LabeledInput label="Sector Index Movement (%)" type="number" step="0.1" value={calib.index_movement} onChange={updateCalib('index_movement')} placeholder="e.g., 5 for +5%" />
+              </CalibSection>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Full-width results ───────────────────────────── */}
+      <div className="space-y-5">
+
+        {/* Fair value hero */}
+        {hasResult ? (
+          <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">Calibration Data</h3>
-                <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Optional: financials, qualitative factors, cap table</p>
+                <p className={sectionTitle + ' !mb-1'}>Fair Value Estimate</p>
+                <p className="text-3xl font-bold text-[var(--color-text-primary)]">{fmt(result.value)}</p>
+                <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{fmt(result.value_low)} &ndash; {fmt(result.value_high)} range</p>
               </div>
-              <span className="text-[10px] text-[var(--color-text-tertiary)]">{showCalibration ? 'Hide' : 'Show'}</span>
-            </button>
-            {showCalibration && (
-              <div className="px-4 pb-4 space-y-4">
-                <CalibSection title="Financials">
-                  <LabeledInput label="Revenue at Last Round ($)" type="number" value={calib.revenue_at_round} onChange={updateCalib('revenue_at_round')} placeholder="e.g., 2500000" />
-                  <LabeledInput label="Gross Margin (0-1)" type="number" step="0.01" value={calib.gross_margin} onChange={updateCalib('gross_margin')} placeholder="e.g., 0.72" />
-                  <LabeledInput label="Runway (months)" type="number" value={calib.runway} onChange={updateCalib('runway')} placeholder="e.g., 18" />
-                </CalibSection>
-                <CalibSection title="Qualitative">
-                  <LabeledSelect label="Board Plan Status" value={calib.board_plan} onChange={updateCalib('board_plan')} options={['', 'exceeded', 'met', 'missed']} labels={['--', 'Exceeded', 'Met', 'Missed']} />
-                  <LabeledSelect label="Customer Concentration" value={calib.cust_concentration} onChange={updateCalib('cust_concentration')} options={['', 'low', 'moderate', 'high']} labels={['--', 'Low', 'Moderate', 'High']} />
-                  <LabeledSelect label="Regulatory Risk" value={calib.reg_risk} onChange={updateCalib('reg_risk')} options={['', 'low', 'moderate', 'high']} labels={['--', 'Low', 'Moderate', 'High']} />
-                </CalibSection>
-                <CalibSection title="Cap Table">
-                  <LabeledSelect label="Security Type" value={calib.security_type} onChange={updateCalib('security_type')}
-                    options={['', 'Common Stock', 'Series Seed Preferred', 'Series A Preferred', 'Series B Preferred', 'Series C Preferred', 'SAFE', 'Convertible Note']}
-                    labels={['--', 'Common Stock', 'Series Seed Preferred', 'Series A Preferred', 'Series B Preferred', 'Series C Preferred', 'SAFE', 'Convertible Note']} />
-                  <LabeledSelect label="Liquidation Preferences" value={calib.liq_pref} onChange={updateCalib('liq_pref')}
-                    options={['', 'None', '1x non-participating', '1x participating', '1x participating (3x cap)', '2x non-participating', '2x participating']}
-                    labels={['--', 'None', '1x Non-Participating', '1x Participating', '1x Participating (3x Cap)', '2x Non-Participating', '2x Participating']} />
-                  <LabeledInput label="Option Pool %" type="number" value={calib.option_pool} onChange={updateCalib('option_pool')} placeholder="e.g., 15" />
-                </CalibSection>
-                <CalibSection title="Market Data">
-                  <LabeledInput label="Sector Index Movement (%)" type="number" step="0.1" value={calib.index_movement} onChange={updateCalib('index_movement')} placeholder="e.g., 5 for +5%" />
-                </CalibSection>
+              {latestValuationId && (
+                <div className="flex gap-1.5">
+                  <a href={exportXlsxUrl(latestValuationId)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] transition-colors">Excel</a>
+                  <a href={exportJsonUrl(latestValuationId)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] transition-colors">JSON</a>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className={`${cardClass} border-dashed text-center`} style={{ boxShadow: 'var(--shadow-sm)' }}>
+            {hasSufficientData ? (
+              <>
+                <p className="text-sm text-[var(--color-text-secondary)] mb-1">All required inputs are set</p>
+                <p className="text-xs text-[var(--color-text-tertiary)] mb-3">You can optionally add calibration data before running.</p>
+                <button onClick={handleRun} disabled={running}
+                  className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
+                  {running ? 'Computing...' : 'Run Valuation'}
+                </button>
+              </>
+            ) : (
+              <div>
+                <p className="text-sm text-[var(--color-text-secondary)] mb-1">Enter company data to begin</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">
+                  {activeTab === 'last_round_adjusted'
+                    ? 'Last Round requires a round date and pre-money valuation.'
+                    : 'Comps requires current annual revenue.'}
+                </p>
               </div>
             )}
           </div>
+        )}
+
+        {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+
+        {/* Method tabs */}
+        <div className="flex border-b border-[var(--color-border)]">
+          {METHOD_TABS.map(t => {
+            const r = methodResults[t.key]
+            return (
+              <button key={t.key} onClick={() => setActiveTab(t.key)}
+                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === t.key
+                    ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                    : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                }`}>
+                {t.label}
+                {r && <span className="ml-1.5 text-xs text-[var(--color-text-tertiary)]">{fmt(r.value)}</span>}
+              </button>
+            )
+          })}
         </div>
 
-        {/* ── Right column: results ────────────────────────── */}
-        <div className="space-y-5">
-
-          {/* Fair value hero */}
-          {hasResult ? (
-            <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className={sectionTitle + ' !mb-1'}>Fair Value Estimate</p>
-                  <p className="text-3xl font-bold text-[var(--color-text-primary)]">{fmt(result.value)}</p>
-                  <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{fmt(result.value_low)} &ndash; {fmt(result.value_high)} range</p>
-                </div>
-                {latestValuationId && (
-                  <div className="flex gap-1.5">
-                    <a href={exportXlsxUrl(latestValuationId)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] transition-colors">Excel</a>
-                    <a href={exportJsonUrl(latestValuationId)} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] transition-colors">JSON</a>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className={`${cardClass} border-dashed text-center`} style={{ boxShadow: 'var(--shadow-sm)' }}>
-              {hasSufficientData ? (
-                <>
-                  <p className="text-sm text-[var(--color-text-secondary)] mb-1">All required inputs are set</p>
-                  <p className="text-xs text-[var(--color-text-tertiary)] mb-3">You can optionally add calibration data before running.</p>
-                  <button onClick={handleRun} disabled={running}
-                    className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
-                    {running ? 'Computing...' : 'Run Valuation'}
-                  </button>
-                </>
-              ) : (
-                <div>
-                  <p className="text-sm text-[var(--color-text-secondary)] mb-1">Enter company data to begin</p>
-                  <p className="text-xs text-[var(--color-text-tertiary)]">
-                    {activeTab === 'last_round_adjusted'
-                      ? 'Last Round requires a round date and pre-money valuation.'
-                      : 'Comps requires current annual revenue.'}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
-
-          {/* Method tabs */}
-          <div className="flex border-b border-[var(--color-border)]">
-            {METHOD_TABS.map(t => {
-              const r = methodResults[t.key]
-              return (
-                <button key={t.key} onClick={() => setActiveTab(t.key)}
-                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                    activeTab === t.key
-                      ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                      : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
-                  }`}>
-                  {t.label}
-                  {r && <span className="ml-1.5 text-xs text-[var(--color-text-tertiary)]">{fmt(r.value)}</span>}
-                </button>
-              )
-            })}
+        {/* Waterfall */}
+        {hasResult && result.steps.length > 2 && (
+          <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <h4 className={sectionTitle}>Calibration Waterfall</h4>
+            <WaterfallChart steps={result.steps} />
           </div>
+        )}
 
-          {/* Waterfall */}
-          {hasResult && result.steps.length > 2 && (
-            <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
-              <h4 className={sectionTitle}>Calibration Waterfall</h4>
-              <WaterfallChart steps={result.steps} />
+        {/* Step-by-step trail */}
+        {hasResult && result.steps.length > 0 && (
+          <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <h4 className={sectionTitle}>How we got here</h4>
+            <div className="space-y-2">
+              {[...result.steps].reverse().map((step, i) => {
+                if (step.description.includes('Calibrated fair value')) return null
+                return (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[var(--color-text-tertiary)] flex-shrink-0" />
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      <span className="font-medium text-[var(--color-text-primary)]">{step.description}</span>
+                      {' '}&rarr; {step.output}
+                    </p>
+                  </div>
+                )
+              })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Step-by-step trail */}
-          {hasResult && result.steps.length > 0 && (
-            <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
-              <h4 className={sectionTitle}>How we got here</h4>
-              <div className="space-y-2">
-                {[...result.steps].reverse().map((step, i) => {
-                  if (step.description.includes('Calibrated fair value')) return null
-                  return (
-                    <div key={i} className="flex items-start gap-2">
-                      <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[var(--color-text-tertiary)] flex-shrink-0" />
-                      <p className="text-sm text-[var(--color-text-secondary)]">
-                        <span className="font-medium text-[var(--color-text-primary)]">{step.description}</span>
-                        {' '}&rarr; {step.output}
+        {/* Key assumptions (click to override) */}
+        {hasResult && result.assumptions.length > 0 && (
+          <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <h4 className={sectionTitle}>Key Assumptions</h4>
+            <div className="grid grid-cols-3 gap-3">
+              {result.assumptions.map((a, i) => {
+                const key = OVERRIDE_KEY_MAP[a.name]
+                const overridden = key ? key in overrides : false
+                const editing = editingKey === key
+                return (
+                  <div key={i} className={`rounded-lg border px-3 py-2.5 ${overridden ? 'border-amber-300 bg-amber-50' : 'border-[var(--color-border)] bg-[var(--color-surface-secondary)]'}`}>
+                    <p className="text-[11px] text-[var(--color-text-tertiary)] mb-0.5">{a.name}</p>
+                    {editing ? (
+                      <span className="flex items-center gap-1">
+                        <input type="number" step="any" value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') commitEdit(a.value); if (e.key === 'Escape') setEditingKey(null) }}
+                          onBlur={() => commitEdit(a.value)}
+                          className="w-20 px-2 py-0.5 rounded border border-[var(--color-primary)] text-sm bg-white focus:outline-none"
+                          autoFocus />
+                        <span className="text-xs text-[var(--color-text-tertiary)]">{a.value.includes('%') ? '%' : ''}</span>
+                      </span>
+                    ) : (
+                      <p className={`text-sm font-semibold ${a.overrideable ? 'cursor-pointer hover:text-[var(--color-primary)]' : ''} ${overridden ? 'text-amber-700' : 'text-[var(--color-text-primary)]'}`}
+                        onClick={() => a.overrideable && startEdit(a.name, a.value)}
+                        title={a.overrideable ? 'Click to override' : undefined}>
+                        {a.value}
+                        {overridden && <span className="ml-1 text-[10px] font-normal text-amber-600">(override)</span>}
                       </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Key assumptions (click to override) */}
-          {hasResult && result.assumptions.length > 0 && (
-            <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
-              <h4 className={sectionTitle}>Key Assumptions</h4>
-              <div className="grid grid-cols-2 gap-3">
-                {result.assumptions.map((a, i) => {
-                  const key = OVERRIDE_KEY_MAP[a.name]
-                  const overridden = key ? key in overrides : false
-                  const editing = editingKey === key
-                  return (
-                    <div key={i} className={`rounded-lg border px-3 py-2.5 ${overridden ? 'border-amber-300 bg-amber-50' : 'border-[var(--color-border)] bg-[var(--color-surface-secondary)]'}`}>
-                      <p className="text-[11px] text-[var(--color-text-tertiary)] mb-0.5">{a.name}</p>
-                      {editing ? (
-                        <span className="flex items-center gap-1">
-                          <input type="number" step="any" value={editValue}
-                            onChange={e => setEditValue(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') commitEdit(a.value); if (e.key === 'Escape') setEditingKey(null) }}
-                            onBlur={() => commitEdit(a.value)}
-                            className="w-20 px-2 py-0.5 rounded border border-[var(--color-primary)] text-sm bg-white focus:outline-none"
-                            autoFocus />
-                          <span className="text-xs text-[var(--color-text-tertiary)]">{a.value.includes('%') ? '%' : ''}</span>
-                        </span>
-                      ) : (
-                        <p className={`text-sm font-semibold ${a.overrideable ? 'cursor-pointer hover:text-[var(--color-primary)]' : ''} ${overridden ? 'text-amber-700' : 'text-[var(--color-text-primary)]'}`}
-                          onClick={() => a.overrideable && startEdit(a.name, a.value)}
-                          title={a.overrideable ? 'Click to override' : undefined}>
-                          {a.value}
-                          {overridden && <span className="ml-1 text-[10px] font-normal text-amber-600">(override)</span>}
-                        </p>
-                      )}
-                      <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 line-clamp-2">{a.rationale}</p>
-                      {a.source && <p className="text-[9px] text-[var(--color-text-tertiary)] italic mt-0.5 line-clamp-1">Source: {a.source}</p>}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Cross-method comparison */}
-          {Object.keys(methodResults).length >= 2 && (
-            <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
-              <ComparisonBars results={methodResults} />
-            </div>
-          )}
-
-          {/* Data sources */}
-          {hasResult && result.sources.length > 0 && (
-            <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
-              <h4 className={sectionTitle}>Data Sources</h4>
-              <div className="space-y-1.5">
-                {result.sources.map((s, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs">
-                    <span className="mt-0.5 w-1 h-1 rounded-full bg-[var(--color-text-tertiary)] flex-shrink-0" />
-                    <div>
-                      <span className="font-medium text-[var(--color-text-secondary)]">{s.name}</span>
-                      <span className="text-[var(--color-text-tertiary)]"> ({s.version}, effective {s.effective_date})</span>
-                    </div>
+                    )}
+                    <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 line-clamp-2">{a.rationale}</p>
+                    {a.source && <p className="text-[9px] text-[var(--color-text-tertiary)] italic mt-0.5 line-clamp-1">Source: {a.source}</p>}
                   </div>
-                ))}
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Cross-method comparison */}
+        {Object.keys(methodResults).length >= 2 && (
+          <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <ComparisonBars results={methodResults} />
+          </div>
+        )}
+
+        {/* Data sources */}
+        {hasResult && result.sources.length > 0 && (
+          <div className={cardClass} style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <h4 className={sectionTitle}>Data Sources</h4>
+            <div className="space-y-1.5">
+              {result.sources.map((s, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className="mt-0.5 w-1 h-1 rounded-full bg-[var(--color-text-tertiary)] flex-shrink-0" />
+                  <div>
+                    <span className="font-medium text-[var(--color-text-secondary)]">{s.name}</span>
+                    <span className="text-[var(--color-text-tertiary)]"> ({s.version}, effective {s.effective_date})</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        {hasResult && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-[var(--color-text-tertiary)]">Change inputs or assumptions above, then recompute.</p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowOverride(o => !o)} disabled={!latestValuationId}
+                  className="px-4 py-2 rounded-lg text-xs font-medium border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-40">
+                  Manual Override
+                </button>
+                <button onClick={handleRun} disabled={running}
+                  className="px-4 py-2 rounded-lg text-xs font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
+                  {running ? 'Saving...' : 'Save & Recompute'}
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Action buttons */}
-          {hasResult && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] text-[var(--color-text-tertiary)]">Change inputs or assumptions above, then recompute.</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowOverride(o => !o)} disabled={!latestValuationId}
-                    className="px-4 py-2 rounded-lg text-xs font-medium border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-40">
-                    Manual Override
-                  </button>
-                  <button onClick={handleRun} disabled={running}
-                    className="px-4 py-2 rounded-lg text-xs font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
-                    {running ? 'Saving...' : 'Save & Recompute'}
+            {/* Override form */}
+            {showOverride && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                <h4 className="text-xs font-medium text-amber-800 uppercase tracking-wider">Manual Override</h4>
+                <div>
+                  <label className="block text-xs font-medium text-amber-700 mb-1">Fair Value ($)</label>
+                  <input type="number" value={overrideFairValue} onChange={e => setOverrideFairValue(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-amber-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    placeholder="e.g., 35000000" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-amber-700 mb-1">Justification</label>
+                  <textarea value={overrideJustification} onChange={e => setOverrideJustification(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-amber-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                    rows={2} placeholder="Reason for override..." />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setShowOverride(false)} className="px-3 py-1.5 rounded-lg text-xs text-[var(--color-text-tertiary)]">Cancel</button>
+                  <button onClick={handleOverrideSubmit} disabled={overrideSubmitting || !overrideFairValue || !overrideJustification}
+                    className="px-4 py-1.5 rounded-lg text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors disabled:opacity-40">
+                    {overrideSubmitting ? 'Applying...' : 'Apply Override'}
                   </button>
                 </div>
               </div>
-
-              {/* Override form */}
-              {showOverride && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-                  <h4 className="text-xs font-medium text-amber-800 uppercase tracking-wider">Manual Override</h4>
-                  <div>
-                    <label className="block text-xs font-medium text-amber-700 mb-1">Fair Value ($)</label>
-                    <input type="number" value={overrideFairValue} onChange={e => setOverrideFairValue(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-amber-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-                      placeholder="e.g., 35000000" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-amber-700 mb-1">Justification</label>
-                    <textarea value={overrideJustification} onChange={e => setOverrideJustification(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-amber-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-                      rows={2} placeholder="Reason for override..." />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowOverride(false)} className="px-3 py-1.5 rounded-lg text-xs text-[var(--color-text-tertiary)]">Cancel</button>
-                    <button onClick={handleOverrideSubmit} disabled={overrideSubmitting || !overrideFairValue || !overrideJustification}
-                      className="px-4 py-1.5 rounded-lg text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors disabled:opacity-40">
-                      {overrideSubmitting ? 'Applying...' : 'Apply Override'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

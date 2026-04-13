@@ -265,9 +265,11 @@ def batch_export(
         ws2.column_dimensions[col].width = width
 
     # --- Sheet 3: Method Details ---
+    # Each method is an independent valuation approach, clearly separated.
     ws3 = wb.create_sheet("Method Details")
-    ws3.append(["Company", "Method", "Step", "Formula", "Inputs", "Output"])
-    style_header(ws3, row=1, cols=6)
+    method_header_fill = PatternFill(start_color='EEF2FF', end_color='EEF2FF', fill_type='solid')
+    method_header_font = Font(bold=True, size=11, color='3730A3')
+    step_headers = ["Step #", "Description", "Formula", "Inputs", "Output"]
 
     for company in companies:
         latest = (
@@ -280,18 +282,32 @@ def batch_export(
             continue
         for mr in latest.method_results:
             method_name = mr.get("method", "").replace("_", " ").title()
-            for step in mr.get("steps", []):
+            is_primary = mr.get("is_primary", False)
+            primary_tag = " (PRIMARY)" if is_primary else ""
+            # Method header row spanning the width
+            ws3.append([f"{company.name} — {method_name}{primary_tag}", "", "", "", "Independent method"])
+            r = ws3.max_row
+            for c in range(1, 6):
+                ws3.cell(row=r, column=c).fill = method_header_fill
+                ws3.cell(row=r, column=c).font = method_header_font
+            # Column headers
+            ws3.append(step_headers)
+            style_header(ws3, row=ws3.max_row, cols=5)
+            # Steps
+            steps = mr.get("steps", [])
+            for idx, step in enumerate(steps, 1):
                 inputs_str = ", ".join(f"{k}: {v}" for k, v in step.get("inputs", {}).items())
                 ws3.append([
-                    company.name,
-                    method_name,
+                    idx,
                     step.get("description", ""),
                     step.get("formula", ""),
                     inputs_str,
                     step.get("output", ""),
                 ])
+            # Blank row between methods
+            ws3.append([])
 
-    for col, width in [("A", 24), ("B", 20), ("C", 30), ("D", 30), ("E", 50), ("F", 24)]:
+    for col, width in [("A", 10), ("B", 40), ("C", 30), ("D", 50), ("E", 30)]:
         ws3.column_dimensions[col].width = width
 
     # --- Sheet 4: Data Sources ---
