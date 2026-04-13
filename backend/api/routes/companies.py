@@ -17,6 +17,10 @@ def create_company(body: CompanyCreate, db: Session = Depends(get_db)):
         sector=body.sector,
         revenue_status=body.revenue_status,
         current_revenue=body.current_revenue,
+        cap_table=body.cap_table,
+        financials=body.financials,
+        qualitative=body.qualitative,
+        external_mapping=body.external_mapping,
         auditor_notes=body.auditor_notes,
         created_by=body.created_by,
     )
@@ -86,6 +90,11 @@ def update_company(company_id: UUID, body: CompanyUpdate, db: Session = Depends(
         company.projections = body.projections.model_dump(mode="json")
     elif "projections" in update_data:
         update_data.pop("projections")
+
+    # JSON fields — set directly
+    for json_field in ("cap_table", "financials", "qualitative", "external_mapping"):
+        if json_field in update_data:
+            setattr(company, json_field, update_data.pop(json_field))
 
     for key, value in update_data.items():
         setattr(company, key, value)

@@ -33,7 +33,8 @@ def test_pre_revenue_no_round():
     assert recs[0].is_primary is True
 
 
-def test_early_revenue_with_benchmarks():
+def test_revenue_no_round_gets_comps_primary():
+    """Without a round, comps is primary when revenue exists."""
     company = CompanyInput(
         name="Revenue Co",
         stage=CompanyStage.SERIES_A,
@@ -46,7 +47,8 @@ def test_early_revenue_with_benchmarks():
     assert primary[0].method == MethodType.COMPS
 
 
-def test_revenue_with_round_gets_secondary():
+def test_revenue_with_round_gets_last_round_primary():
+    """With a round, last round calibration is always primary; comps is secondary."""
     company = CompanyInput(
         name="Revenue Co",
         stage=CompanyStage.SERIES_A,
@@ -56,12 +58,36 @@ def test_revenue_with_round_gets_secondary():
         last_round=FundingRound(date=date(2025, 1, 1), pre_money_valuation=Decimal("20000000"), amount_raised=Decimal("5000000")),
     )
     recs = recommend_methods(company)
+    assert recs[0].method == MethodType.LAST_ROUND_ADJUSTED
+    assert recs[0].is_primary is True
     methods = [r.method for r in recs]
     assert MethodType.COMPS in methods
-    assert MethodType.LAST_ROUND_ADJUSTED in methods
 
 
-def test_series_c_with_projections_gets_dcf():
+def test_series_c_with_round_and_projections():
+    """Even at Series C+ with projections, last round is primary; DCF is secondary."""
+    company = CompanyInput(
+        name="Growth Co",
+        stage=CompanyStage.SERIES_C_PLUS,
+        sector="financials",
+        revenue_status=RevenueStatus.SCALED_REVENUE,
+        current_revenue=Decimal("20000000"),
+        last_round=FundingRound(date=date(2025, 1, 1), pre_money_valuation=Decimal("100000000"), amount_raised=Decimal("30000000")),
+        projections=FinancialProjections(periods=[
+            ProjectionPeriod(year=2026, revenue=Decimal("30000000"), ebitda=Decimal("5000000")),
+            ProjectionPeriod(year=2027, revenue=Decimal("42000000"), ebitda=Decimal("10000000")),
+        ]),
+    )
+    recs = recommend_methods(company)
+    assert recs[0].method == MethodType.LAST_ROUND_ADJUSTED
+    assert recs[0].is_primary is True
+    methods = [r.method for r in recs]
+    assert MethodType.COMPS in methods
+    assert MethodType.DCF in methods
+
+
+def test_series_c_no_round_with_projections_gets_comps_primary():
+    """Without a round, comps is primary (even at Series C+ with projections)."""
     company = CompanyInput(
         name="Growth Co",
         stage=CompanyStage.SERIES_C_PLUS,
@@ -75,44 +101,7 @@ def test_series_c_with_projections_gets_dcf():
     )
     recs = recommend_methods(company)
     primary = [r for r in recs if r.is_primary]
-    assert primary[0].method == MethodType.DCF
-    methods = [r.method for r in recs]
-    assert MethodType.COMPS in methods
-
-
-def test_series_b_with_projections_gets_comps_primary_dcf_secondary():
-    company = CompanyInput(
-        name="Series B Co",
-        stage=CompanyStage.SERIES_B,
-        sector="information_technology",
-        revenue_status=RevenueStatus.GROWING_REVENUE,
-        current_revenue=Decimal("5000000"),
-        projections=FinancialProjections(periods=[
-            ProjectionPeriod(year=2026, revenue=Decimal("8000000"), ebitda=Decimal("1000000")),
-            ProjectionPeriod(year=2027, revenue=Decimal("12000000"), ebitda=Decimal("3000000")),
-        ]),
-    )
-    recs = recommend_methods(company)
-    primary = [r for r in recs if r.is_primary]
     assert primary[0].method == MethodType.COMPS
-    methods = [r.method for r in recs]
-    assert MethodType.DCF in methods
-
-
-def test_pre_revenue_with_round_and_projections_gets_dcf_secondary():
-    company = CompanyInput(
-        name="Pre-Rev Projections Co",
-        stage=CompanyStage.SEED,
-        sector="information_technology",
-        revenue_status=RevenueStatus.PRE_REVENUE,
-        last_round=FundingRound(date=date(2025, 6, 1), pre_money_valuation=Decimal("10000000"), amount_raised=Decimal("3000000")),
-        projections=FinancialProjections(periods=[
-            ProjectionPeriod(year=2026, revenue=Decimal("500000"), ebitda=Decimal("100000")),
-            ProjectionPeriod(year=2027, revenue=Decimal("2000000"), ebitda=Decimal("500000")),
-        ]),
-    )
-    recs = recommend_methods(company)
-    assert recs[0].method == MethodType.LAST_ROUND_ADJUSTED
     methods = [r.method for r in recs]
     assert MethodType.DCF in methods
 

@@ -37,6 +37,6 @@ def test_steps_are_traceable():
     company = _make_company(date(2025, 6, 1), Decimal("30000000"), Decimal("10000000"))
     result = LastRoundAdjusted().compute(company, valuation_date=date(2026, 1, 1))
     step_descriptions = [s.description for s in result.steps]
-    assert "Calculate post-money valuation" in step_descriptions
-    assert "Apply time adjustment" in step_descriptions
-    assert "Apply market/sector adjustment" in step_descriptions
+    assert "Anchor: post-money valuation from last financing" in step_descriptions
+    assert "Time adjustment for staleness of last transaction" in step_descriptions
+    assert "Market/sector calibration" in step_descriptions

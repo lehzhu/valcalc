@@ -45,7 +45,11 @@ class CompanyCreate(BaseModel):
     revenue_status: str
     current_revenue: Decimal | None = None
     last_round: FundingRoundIn | None = None
+    cap_table: dict | None = None
+    financials: dict | None = None
     projections: FinancialProjectionsIn | None = None
+    qualitative: dict | None = None
+    external_mapping: dict | None = None
     auditor_notes: str | None = None
     created_by: str
 
@@ -56,7 +60,11 @@ class CompanyUpdate(BaseModel):
     revenue_status: str | None = None
     current_revenue: Decimal | None = None
     last_round: FundingRoundIn | None = None
+    cap_table: dict | None = None
+    financials: dict | None = None
     projections: FinancialProjectionsIn | None = None
+    qualitative: dict | None = None
+    external_mapping: dict | None = None
     auditor_notes: str | None = None
 
 class CompanyOut(BaseModel):
@@ -70,7 +78,11 @@ class CompanyOut(BaseModel):
     last_round_valuation: Decimal | None
     last_round_amount: Decimal | None
     last_round_investor: str | None
+    cap_table: dict | None
+    financials: dict | None
     projections: dict | None
+    qualitative: dict | None
+    external_mapping: dict | None
     auditor_notes: str | None
     created_by: str
     created_at: datetime

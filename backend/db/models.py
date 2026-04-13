@@ -31,7 +31,12 @@ class Company(Base):
     last_round_valuation: Mapped[Decimal | None] = mapped_column(Numeric(20, 2), nullable=True)
     last_round_amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 2), nullable=True)
     last_round_investor: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Extended data for calibration method
+    cap_table: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    financials: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     projections: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    qualitative: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    external_mapping: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     auditor_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

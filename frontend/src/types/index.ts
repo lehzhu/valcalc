@@ -31,7 +31,11 @@ export interface CompanyCreate {
   revenue_status: string
   current_revenue?: string
   last_round?: FundingRound
+  cap_table?: Record<string, unknown>
+  financials?: Record<string, unknown>
   projections?: FinancialProjections
+  qualitative?: Record<string, unknown>
+  external_mapping?: Record<string, unknown>
   auditor_notes?: string
   created_by: string
 }
@@ -47,7 +51,11 @@ export interface Company {
   last_round_valuation?: string
   last_round_amount?: string
   last_round_investor?: string
+  cap_table?: Record<string, unknown>
+  financials?: Record<string, unknown>
   projections?: Record<string, unknown>
+  qualitative?: Record<string, unknown>
+  external_mapping?: Record<string, unknown>
   auditor_notes?: string
   created_by: string
   created_at: string

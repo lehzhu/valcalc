@@ -44,7 +44,8 @@ def test_revenue_company_with_comps():
     assert result.primary_method == MethodType.COMPS
 
 
-def test_series_c_company_with_dcf():
+def test_series_c_company_no_round_gets_comps():
+    """Without a round, Series C+ with revenue falls back to comps primary."""
     company = CompanyInput(
         name="Growth Fintech",
         stage=CompanyStage.SERIES_C_PLUS,
@@ -59,8 +60,8 @@ def test_series_c_company_with_dcf():
     )
     result = run_valuation(company, valuation_date=date(2026, 1, 1))
 
-    assert result.primary_method == MethodType.DCF
-    assert len(result.method_results) >= 2  # DCF + Comps at minimum
+    assert result.primary_method == MethodType.COMPS
+    assert len(result.method_results) >= 2  # Comps + DCF
 
 
 def test_no_data_falls_back_to_manual():

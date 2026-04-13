@@ -57,7 +57,11 @@ class CompanyInput:
     revenue_status: RevenueStatus
     last_round: FundingRound | None = None
     current_revenue: Decimal | None = None
+    cap_table: dict | None = None
+    financials: dict | None = None
     projections: FinancialProjections | None = None
+    qualitative: dict | None = None
+    external_mapping: dict | None = None
     auditor_notes: str | None = None
 
 

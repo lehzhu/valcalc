@@ -48,7 +48,11 @@ def _company_to_engine_input(company: Company) -> CompanyInput:
         revenue_status=RevenueStatus(company.revenue_status),
         last_round=last_round,
         current_revenue=company.current_revenue,
+        cap_table=company.cap_table,
+        financials=company.financials,
         projections=projections,
+        qualitative=company.qualitative,
+        external_mapping=company.external_mapping,
         auditor_notes=company.auditor_notes,
     )
 
