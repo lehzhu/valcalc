@@ -9,9 +9,8 @@ const METHOD_LABELS: Record<string, string> = { last_round_adjusted: 'Last Round
 
 function formatCurrency(value: string): string {
   const num = parseFloat(value)
-  if (num >= 1e9) return `$${(num / 1e9).toFixed(1)}B`
-  if (num >= 1e6) return `$${(num / 1e6).toFixed(1)}M`
-  return `$${num.toLocaleString()}`
+  if (isNaN(num)) return '--'
+  return `$${Math.round(num).toLocaleString('en-US')}`
 }
 
 export default function CompanyHistory() {

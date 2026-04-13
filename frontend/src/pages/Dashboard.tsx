@@ -22,10 +22,8 @@ type SortDir = 'asc' | 'desc'
 function formatCurrency(value: string | undefined): string {
   if (!value) return '—'
   const num = parseFloat(value)
-  if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(1)}B`
-  if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(1)}M`
-  if (num >= 1_000) return `$${(num / 1_000).toFixed(0)}K`
-  return `$${num.toFixed(0)}`
+  if (isNaN(num)) return '—'
+  return `$${Math.round(num).toLocaleString('en-US')}`
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -252,6 +250,21 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          {batchResult.warnings && batchResult.warnings.length > 0 && (
+            <div className="mt-4 border-t border-[var(--color-border)] pt-3">
+              <p className="text-xs font-medium text-amber-700 mb-2">
+                {batchResult.warnings.length} validation warning{batchResult.warnings.length > 1 ? 's' : ''}
+              </p>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {batchResult.warnings.map((w, i) => (
+                  <div key={i} className="flex items-start gap-2 px-3 py-1.5 rounded bg-amber-50 border border-amber-100 text-xs">
+                    <span className="font-medium text-amber-800 whitespace-nowrap">Row {w.row}</span>
+                    <span className="text-amber-700">{w.field}: {w.message}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

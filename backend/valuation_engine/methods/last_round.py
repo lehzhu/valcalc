@@ -21,13 +21,7 @@ from valuation_engine.benchmarks.loader import get_sector_benchmarks, get_benchm
 
 
 def _fmt(value: Decimal) -> str:
-    if abs(value) >= 1_000_000_000:
-        return f"${value / 1_000_000_000:.1f}B"
-    if abs(value) >= 1_000_000:
-        return f"${value / 1_000_000:.1f}M"
-    if abs(value) >= 1_000:
-        return f"${value / 1_000:.0f}K"
-    return f"${value:.0f}"
+    return f"${value:,.0f}"
 
 
 class LastRoundAdjusted:
@@ -126,68 +120,72 @@ class LastRoundAdjusted:
         # =================================================================
         # STEP 3: Financial performance adjustment
         # =================================================================
-        perf_factor = Decimal("1.0")
-        perf_inputs: dict[str, str] = {}
-        perf_rationale_parts: list[str] = []
+        if "performance_adjustment" in overrides:
+            perf_factor = Decimal("1") + Decimal(str(overrides["performance_adjustment"]))
+            perf_inputs = {"override": f"{overrides['performance_adjustment']:+.1%}"}
+            perf_rationale_parts = ["Auditor override"]
+        else:
+            perf_factor = Decimal("1.0")
+            perf_inputs = {}
+            perf_rationale_parts = []
 
-        # Revenue trajectory
-        current_rev = financials.get("current_revenue") or (
-            str(company.current_revenue) if company.current_revenue else None
-        )
-        prior_rev = financials.get("revenue_at_last_round")
-        if current_rev and prior_rev:
-            try:
-                cur = Decimal(str(current_rev))
-                prior = Decimal(str(prior_rev))
-                if prior > 0:
-                    rev_growth = (cur - prior) / prior
-                    # Cap the performance adjustment at ±30%
-                    rev_adj = min(max(rev_growth * Decimal("0.5"), Decimal("-0.30")), Decimal("0.30"))
-                    perf_factor += rev_adj
-                    perf_inputs["revenue_growth"] = f"{rev_growth:+.1%}"
-                    perf_inputs["revenue_adjustment"] = f"{rev_adj:+.1%}"
-                    perf_rationale_parts.append(
-                        f"Revenue grew {rev_growth:+.1%} since round "
-                        f"(${prior / 1_000_000:.1f}M → ${cur / 1_000_000:.1f}M)"
-                    )
-            except Exception:
-                pass
+            # Revenue trajectory
+            current_rev = financials.get("current_revenue") or (
+                str(company.current_revenue) if company.current_revenue else None
+            )
+            prior_rev = financials.get("revenue_at_last_round")
+            if current_rev and prior_rev:
+                try:
+                    cur = Decimal(str(current_rev))
+                    prior = Decimal(str(prior_rev))
+                    if prior > 0:
+                        rev_growth = (cur - prior) / prior
+                        rev_adj = min(max(rev_growth * Decimal("0.5"), Decimal("-0.30")), Decimal("0.30"))
+                        perf_factor += rev_adj
+                        perf_inputs["revenue_growth"] = f"{rev_growth:+.1%}"
+                        perf_inputs["revenue_adjustment"] = f"{rev_adj:+.1%}"
+                        perf_rationale_parts.append(
+                            f"Revenue grew {rev_growth:+.1%} since round "
+                            f"(${prior / 1_000_000:.1f}M → ${cur / 1_000_000:.1f}M)"
+                        )
+                except Exception:
+                    pass
 
-        # Gross margin signal
-        gross_margin = financials.get("gross_margin")
-        if gross_margin is not None:
-            try:
-                gm = Decimal(str(gross_margin))
-                if gm >= Decimal("0.70"):
-                    gm_adj = Decimal("0.05")
-                    perf_rationale_parts.append(f"Strong gross margin ({gm:.0%})")
-                elif gm < Decimal("0.40"):
-                    gm_adj = Decimal("-0.05")
-                    perf_rationale_parts.append(f"Weak gross margin ({gm:.0%})")
-                else:
-                    gm_adj = Decimal("0")
-                perf_factor += gm_adj
-                perf_inputs["gross_margin"] = f"{gm:.0%}"
-            except Exception:
-                pass
+            # Gross margin signal
+            gross_margin = financials.get("gross_margin")
+            if gross_margin is not None:
+                try:
+                    gm = Decimal(str(gross_margin))
+                    if gm >= Decimal("0.70"):
+                        gm_adj = Decimal("0.05")
+                        perf_rationale_parts.append(f"Strong gross margin ({gm:.0%})")
+                    elif gm < Decimal("0.40"):
+                        gm_adj = Decimal("-0.05")
+                        perf_rationale_parts.append(f"Weak gross margin ({gm:.0%})")
+                    else:
+                        gm_adj = Decimal("0")
+                    perf_factor += gm_adj
+                    perf_inputs["gross_margin"] = f"{gm:.0%}"
+                except Exception:
+                    pass
 
-        # Runway signal
-        runway_months = financials.get("runway_months")
-        if runway_months is not None:
-            try:
-                rw = int(runway_months)
-                if rw < 6:
-                    rw_adj = Decimal("-0.10")
-                    perf_rationale_parts.append(f"Critical runway ({rw} months)")
-                elif rw < 12:
-                    rw_adj = Decimal("-0.05")
-                    perf_rationale_parts.append(f"Short runway ({rw} months)")
-                else:
-                    rw_adj = Decimal("0")
-                perf_factor += rw_adj
-                perf_inputs["runway_months"] = str(rw)
-            except Exception:
-                pass
+            # Runway signal
+            runway_months = financials.get("runway_months")
+            if runway_months is not None:
+                try:
+                    rw = int(runway_months)
+                    if rw < 6:
+                        rw_adj = Decimal("-0.10")
+                        perf_rationale_parts.append(f"Critical runway ({rw} months)")
+                    elif rw < 12:
+                        rw_adj = Decimal("-0.05")
+                        perf_rationale_parts.append(f"Short runway ({rw} months)")
+                    else:
+                        rw_adj = Decimal("0")
+                    perf_factor += rw_adj
+                    perf_inputs["runway_months"] = str(rw)
+                except Exception:
+                    pass
 
         if perf_factor != Decimal("1.0"):
             running_value = (running_value * perf_factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
@@ -201,7 +199,7 @@ class LastRoundAdjusted:
                 name="Performance adjustment",
                 value=f"{perf_factor - 1:+.1%}",
                 rationale="; ".join(perf_rationale_parts) if perf_rationale_parts else "Based on financial data since last round",
-                source="Company financial data" if (current_rev or gross_margin) else None,
+                source="Company financial data" if not ("performance_adjustment" in overrides) else "Auditor override",
                 overrideable=True,
             ))
 
@@ -265,47 +263,51 @@ class LastRoundAdjusted:
         # =================================================================
         # STEP 5: Qualitative adjustment
         # =================================================================
-        qual_factor = Decimal("1.0")
-        qual_inputs: dict[str, str] = {}
-        qual_rationale_parts: list[str] = []
+        if "qualitative_adjustment" in overrides:
+            qual_factor = Decimal("1") + Decimal(str(overrides["qualitative_adjustment"]))
+            qual_inputs = {"override": f"{overrides['qualitative_adjustment']:+.1%}"}
+            qual_rationale_parts = ["Auditor override"]
+        else:
+            qual_factor = Decimal("1.0")
+            qual_inputs = {}
+            qual_rationale_parts = []
 
-        # Board plan performance
-        board_plan_status = qualitative.get("board_plan_status")
-        if board_plan_status:
-            status = str(board_plan_status).lower()
-            if "exceeded" in status or "beat" in status:
-                qual_factor += Decimal("0.10")
-                qual_rationale_parts.append("Exceeded board plan")
-            elif "missed" in status or "below" in status:
-                qual_factor -= Decimal("0.10")
-                qual_rationale_parts.append("Missed board plan")
-            elif "met" in status or "on track" in status:
-                qual_rationale_parts.append("On track with board plan")
-            qual_inputs["board_plan"] = board_plan_status
+            # Board plan performance
+            board_plan_status = qualitative.get("board_plan_status")
+            if board_plan_status:
+                status = str(board_plan_status).lower()
+                if "exceeded" in status or "beat" in status:
+                    qual_factor += Decimal("0.10")
+                    qual_rationale_parts.append("Exceeded board plan")
+                elif "missed" in status or "below" in status:
+                    qual_factor -= Decimal("0.10")
+                    qual_rationale_parts.append("Missed board plan")
+                elif "met" in status or "on track" in status:
+                    qual_rationale_parts.append("On track with board plan")
+                qual_inputs["board_plan"] = board_plan_status
 
-        # Major events since round
-        major_events = qualitative.get("major_events")
-        if major_events:
-            qual_inputs["major_events"] = str(major_events)[:100]
-            # User should use overrides for precise impact
+            # Major events since round
+            major_events = qualitative.get("major_events")
+            if major_events:
+                qual_inputs["major_events"] = str(major_events)[:100]
 
-        # Customer concentration risk
-        customer_concentration = qualitative.get("customer_concentration")
-        if customer_concentration:
-            conc = str(customer_concentration).lower()
-            if "high" in conc or any(c.isdigit() and int(c) > 3 for c in conc.split() if c.isdigit()):
-                qual_factor -= Decimal("0.05")
-                qual_rationale_parts.append(f"Customer concentration risk: {customer_concentration}")
-            qual_inputs["customer_concentration"] = str(customer_concentration)
+            # Customer concentration risk
+            customer_concentration = qualitative.get("customer_concentration")
+            if customer_concentration:
+                conc = str(customer_concentration).lower()
+                if "high" in conc or any(c.isdigit() and int(c) > 3 for c in conc.split() if c.isdigit()):
+                    qual_factor -= Decimal("0.05")
+                    qual_rationale_parts.append(f"Customer concentration risk: {customer_concentration}")
+                qual_inputs["customer_concentration"] = str(customer_concentration)
 
-        # Regulatory risk
-        regulatory_risk = qualitative.get("regulatory_risk")
-        if regulatory_risk:
-            risk = str(regulatory_risk).lower()
-            if "high" in risk or "material" in risk:
-                qual_factor -= Decimal("0.05")
-                qual_rationale_parts.append(f"Elevated regulatory risk")
-            qual_inputs["regulatory_risk"] = str(regulatory_risk)
+            # Regulatory risk
+            regulatory_risk = qualitative.get("regulatory_risk")
+            if regulatory_risk:
+                risk = str(regulatory_risk).lower()
+                if "high" in risk or "material" in risk:
+                    qual_factor -= Decimal("0.05")
+                    qual_rationale_parts.append(f"Elevated regulatory risk")
+                qual_inputs["regulatory_risk"] = str(regulatory_risk)
 
         if qual_factor != Decimal("1.0"):
             running_value = (running_value * qual_factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
@@ -319,7 +321,7 @@ class LastRoundAdjusted:
                 name="Qualitative adjustment",
                 value=f"{qual_factor - 1:+.1%}",
                 rationale="; ".join(qual_rationale_parts) if qual_rationale_parts else "Based on qualitative factors",
-                source="Management/auditor assessment",
+                source="Auditor override" if "qualitative_adjustment" in overrides else "Management/auditor assessment",
                 overrideable=True,
             ))
 

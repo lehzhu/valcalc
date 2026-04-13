@@ -4,10 +4,7 @@ from valuation_engine.models import CompanyInput, CompanyStage, RevenueStatus, M
 from valuation_engine.benchmarks.loader import get_sector_benchmarks, get_benchmark_version
 
 def _format_currency(value: Decimal) -> str:
-    if value >= 1_000_000_000: return f"${value / 1_000_000_000:.1f}B"
-    if value >= 1_000_000: return f"${value / 1_000_000:.1f}M"
-    if value >= 1_000: return f"${value / 1_000:.0f}K"
-    return f"${value:.0f}"
+    return f"${value:,.0f}"
 
 _BASE_STAGE_DISCOUNTS = {
     CompanyStage.PRE_SEED: Decimal("0.35"), CompanyStage.SEED: Decimal("0.30"),
@@ -61,19 +58,27 @@ class ComparableCompanyMultiples:
             rationale=f"Median revenue multiple for {company.sector}", source=f"Benchmark {benchmark_version}", overrideable=True))
 
         # Growth adjustment
-        growth_adjustment = Decimal("1.0")
-        if not custom_multiples:
-            sector_data = get_sector_benchmarks(company.sector)
-            sector_median_growth = Decimal(str(sector_data.get("median_growth_rate", 0.25)))
-            if company.projections and company.projections.periods:
-                company_growth = Decimal(str(company.projections.periods[0].growth_rate or 0))
-                growth_diff = company_growth - sector_median_growth
-                growth_adjustment = max(Decimal("0.7"), min(Decimal("1") + (growth_diff * Decimal("0.5")), Decimal("1.5")))
-                steps.append(ComputationStep(description="Apply growth rate adjustment", formula="base × growth_adjustment",
-                    inputs={"company_growth": f"{company_growth:.0%}", "sector_median_growth": f"{sector_median_growth:.0%}", "adjustment_factor": f"{growth_adjustment:.4f}"},
-                    output=_format_currency((base_value * growth_adjustment).quantize(Decimal("1"), rounding=ROUND_HALF_UP))))
-                assumptions.append(Assumption(name="Growth adjustment", value=f"{growth_adjustment:.4f}x",
-                    rationale=f"Company growth ({company_growth:.0%}) vs sector median ({sector_median_growth:.0%})", overrideable=True))
+        if "growth_adjustment" in overrides:
+            growth_adjustment = Decimal(str(overrides["growth_adjustment"]))
+            steps.append(ComputationStep(description="Apply growth rate adjustment", formula="base × growth_adjustment",
+                inputs={"adjustment_factor": f"{growth_adjustment:.4f}", "source": "Auditor override"},
+                output=_format_currency((base_value * growth_adjustment).quantize(Decimal("1"), rounding=ROUND_HALF_UP))))
+            assumptions.append(Assumption(name="Growth adjustment", value=f"{growth_adjustment:.4f}x",
+                rationale="Auditor override", overrideable=True))
+        else:
+            growth_adjustment = Decimal("1.0")
+            if not custom_multiples:
+                sector_data = get_sector_benchmarks(company.sector)
+                sector_median_growth = Decimal(str(sector_data.get("median_growth_rate", 0.25)))
+                if company.projections and company.projections.periods:
+                    company_growth = Decimal(str(company.projections.periods[0].growth_rate or 0))
+                    growth_diff = company_growth - sector_median_growth
+                    growth_adjustment = max(Decimal("0.7"), min(Decimal("1") + (growth_diff * Decimal("0.5")), Decimal("1.5")))
+                    steps.append(ComputationStep(description="Apply growth rate adjustment", formula="base × growth_adjustment",
+                        inputs={"company_growth": f"{company_growth:.0%}", "sector_median_growth": f"{sector_median_growth:.0%}", "adjustment_factor": f"{growth_adjustment:.4f}"},
+                        output=_format_currency((base_value * growth_adjustment).quantize(Decimal("1"), rounding=ROUND_HALF_UP))))
+                    assumptions.append(Assumption(name="Growth adjustment", value=f"{growth_adjustment:.4f}x",
+                        rationale=f"Company growth ({company_growth:.0%}) vs sector median ({sector_median_growth:.0%})", overrideable=True))
 
         adjusted_value = (base_value * growth_adjustment).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         adjusted_low = (base_low * growth_adjustment).quantize(Decimal("1"), rounding=ROUND_HALF_UP)

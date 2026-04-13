@@ -101,11 +101,19 @@ export interface BatchResultItem {
   error?: string
 }
 
+export interface BatchWarning {
+  row: string
+  field: string
+  value: string
+  message: string
+}
+
 export interface BatchResult {
   total: number
   succeeded: number
   failed: number
   results: BatchResultItem[]
+  warnings?: BatchWarning[]
 }
 
 export async function uploadBatch(file: File, createdBy?: string): Promise<BatchResult> {

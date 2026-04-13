@@ -77,7 +77,7 @@ async def batch_import(
         raise HTTPException(status_code=400, detail="File too large (max 50MB)")
 
     try:
-        companies_data = parse_batch_file(file.filename, content)
+        companies_data, warnings = parse_batch_file(file.filename, content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -95,4 +95,5 @@ async def batch_import(
         "succeeded": sum(1 for r in results if r["status"] == "ok"),
         "failed": sum(1 for r in results if r["status"] == "error"),
         "results": results,
+        "warnings": warnings,
     }

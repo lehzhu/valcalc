@@ -131,8 +131,8 @@ _COL_MAP = {
 }
 
 
-def parse_batch_file(filename: str, content: bytes) -> list[dict[str, Any]]:
-    """Parse a multi-company file. Returns a list of company dicts."""
+def parse_batch_file(filename: str, content: bytes) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Parse a multi-company file. Returns (company dicts, validation warnings)."""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext in ("xlsx", "xls"):
         return _parse_batch_excel(content)
@@ -142,7 +142,7 @@ def parse_batch_file(filename: str, content: bytes) -> list[dict[str, Any]]:
         raise ValueError(f"Unsupported file type: .{ext}. Upload .xlsx or .csv.")
 
 
-def _parse_batch_excel(content: bytes) -> list[dict[str, Any]]:
+def _parse_batch_excel(content: bytes) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     ws = wb.active
     rows = list(ws.iter_rows(values_only=True))
@@ -152,7 +152,7 @@ def _parse_batch_excel(content: bytes) -> list[dict[str, Any]]:
     return _parse_rows(rows)
 
 
-def _parse_batch_csv(content: bytes) -> list[dict[str, Any]]:
+def _parse_batch_csv(content: bytes) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     import csv
     text = content.decode("utf-8-sig")
     reader = csv.reader(io.StringIO(text))
@@ -162,8 +162,135 @@ def _parse_batch_csv(content: bytes) -> list[dict[str, Any]]:
     return _parse_rows(rows)
 
 
-def _parse_rows(rows: list[tuple]) -> list[dict[str, Any]]:
-    """Parse tabular rows into a list of company dicts."""
+_VALID_STAGES = {
+    "pre_seed", "seed", "series_a", "series_b", "series_c_plus", "late_pre_ipo",
+}
+_VALID_REVENUE_STATUSES = {
+    "pre_revenue", "early_revenue", "growing_revenue", "scaled_revenue",
+}
+_VALID_BOARD_PLAN = {"exceeded", "met", "missed"}
+_VALID_CONCENTRATION = {"low", "moderate", "high"}
+_VALID_REG_RISK = {"low", "moderate", "high"}
+_VALID_SECURITY_TYPES = {
+    "common stock", "series seed preferred", "series a preferred",
+    "series b preferred", "series c preferred", "safe", "convertible note",
+}
+_VALID_LIQ_PREFS = {
+    "none", "1x non-participating", "1x participating",
+    "1x participating (3x cap)", "2x non-participating", "2x participating",
+}
+
+
+def _validate_row(raw: dict[str, str], row_num: int) -> list[dict[str, str]]:
+    """Validate a parsed row and return a list of warnings/errors."""
+    issues: list[dict[str, str]] = []
+
+    # Stage
+    if "stage" in raw:
+        normalized = _normalize_stage(raw["stage"])
+        if normalized not in _VALID_STAGES:
+            issues.append({
+                "row": str(row_num), "field": "Stage",
+                "value": raw["stage"],
+                "message": f"Unrecognized stage '{raw['stage']}'. Expected one of: {', '.join(sorted(_VALID_STAGES))}",
+            })
+
+    # Revenue status
+    if "revenue_status" in raw:
+        normalized = _normalize_revenue_status(raw["revenue_status"])
+        if normalized not in _VALID_REVENUE_STATUSES:
+            issues.append({
+                "row": str(row_num), "field": "Revenue Status",
+                "value": raw["revenue_status"],
+                "message": f"Unrecognized revenue status '{raw['revenue_status']}'. Expected one of: {', '.join(sorted(_VALID_REVENUE_STATUSES))}",
+            })
+
+    # Numeric fields
+    for field, label in [
+        ("current_revenue", "Current Revenue"),
+        ("lr_valuation", "Pre-Money Valuation"),
+        ("lr_amount", "Amount Raised"),
+    ]:
+        if field in raw and _parse_money(raw[field]) is None:
+            issues.append({
+                "row": str(row_num), "field": label,
+                "value": raw[field],
+                "message": f"Cannot parse '{raw[field]}' as a number. Use digits, optionally with $, commas, or B/M/K suffix.",
+            })
+
+    # Date
+    if "lr_date" in raw:
+        try:
+            from datetime import date as _date
+            _date.fromisoformat(raw["lr_date"])
+        except (ValueError, TypeError):
+            issues.append({
+                "row": str(row_num), "field": "Last Round Date",
+                "value": raw["lr_date"],
+                "message": f"Cannot parse '{raw['lr_date']}' as a date. Use YYYY-MM-DD format.",
+            })
+
+    # Gross margin range
+    if "fin_gross_margin" in raw:
+        val = _parse_money(raw["fin_gross_margin"])
+        if val is not None and (val < 0 or val > 1):
+            issues.append({
+                "row": str(row_num), "field": "Gross Margin",
+                "value": raw["fin_gross_margin"],
+                "message": f"Gross margin should be between 0 and 1 (e.g., 0.72 for 72%).",
+            })
+
+    # Qualitative enums
+    if "qual_board_plan_status" in raw and raw["qual_board_plan_status"].lower() not in _VALID_BOARD_PLAN:
+        issues.append({
+            "row": str(row_num), "field": "Board Plan Status",
+            "value": raw["qual_board_plan_status"],
+            "message": f"Expected one of: exceeded, met, missed.",
+        })
+    if "qual_customer_concentration" in raw and raw["qual_customer_concentration"].lower() not in _VALID_CONCENTRATION:
+        issues.append({
+            "row": str(row_num), "field": "Customer Concentration",
+            "value": raw["qual_customer_concentration"],
+            "message": f"Expected one of: low, moderate, high.",
+        })
+    if "qual_regulatory_risk" in raw and raw["qual_regulatory_risk"].lower() not in _VALID_REG_RISK:
+        issues.append({
+            "row": str(row_num), "field": "Regulatory Risk",
+            "value": raw["qual_regulatory_risk"],
+            "message": f"Expected one of: low, moderate, high.",
+        })
+
+    # Security type
+    if "ct_security_type" in raw and raw["ct_security_type"].lower() not in _VALID_SECURITY_TYPES:
+        issues.append({
+            "row": str(row_num), "field": "Security Type",
+            "value": raw["ct_security_type"],
+            "message": f"Unrecognized security type. Expected one of: {', '.join(sorted(_VALID_SECURITY_TYPES))}",
+        })
+
+    # Liquidation preferences
+    if "ct_liquidation_preferences" in raw and raw["ct_liquidation_preferences"].lower() not in _VALID_LIQ_PREFS:
+        issues.append({
+            "row": str(row_num), "field": "Liquidation Preferences",
+            "value": raw["ct_liquidation_preferences"],
+            "message": f"Unrecognized liquidation preference. Expected one of: {', '.join(sorted(_VALID_LIQ_PREFS))}",
+        })
+
+    # Option pool range
+    if "ct_option_pool_pct" in raw:
+        val = _parse_money(raw["ct_option_pool_pct"])
+        if val is not None and (val < 0 or val > 50):
+            issues.append({
+                "row": str(row_num), "field": "Option Pool %",
+                "value": raw["ct_option_pool_pct"],
+                "message": f"Option pool percentage seems out of range (expected 0-50).",
+            })
+
+    return issues
+
+
+def _parse_rows(rows: list[tuple]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Parse tabular rows into a list of company dicts and validation warnings."""
     headers = [str(c).strip().lower() if c else "" for c in rows[0]]
 
     # Map column indices to field names
@@ -182,6 +309,8 @@ def _parse_rows(rows: list[tuple]) -> list[dict[str, Any]]:
         raise ValueError("No recognized column headers. Use the batch template.")
 
     companies: list[dict[str, Any]] = []
+    all_warnings: list[dict[str, str]] = []
+
     # Skip notes row if it looks like notes (first cell starts with description-like text)
     start = 1
     if len(rows) > 2:
@@ -189,7 +318,7 @@ def _parse_rows(rows: list[tuple]) -> list[dict[str, Any]]:
         if first_data.startswith("required") or first_data.startswith("e.g") or first_data.startswith("pre_seed"):
             start = 2
 
-    for row in rows[start:]:
+    for row_idx, row in enumerate(rows[start:], start=start + 1):
         if not row or all(c is None or str(c).strip() == "" for c in row):
             continue
 
@@ -201,12 +330,19 @@ def _parse_rows(rows: list[tuple]) -> list[dict[str, Any]]:
                     raw[field] = val
 
         if "name" not in raw:
-            continue  # Skip rows without a company name
+            all_warnings.append({
+                "row": str(row_idx), "field": "Company Name",
+                "value": "", "message": "Row has no company name — skipped.",
+            })
+            continue
+
+        warnings = _validate_row(raw, row_idx)
+        all_warnings.extend(warnings)
 
         company = _build_company_dict(raw)
         companies.append(company)
 
-    return companies
+    return companies, all_warnings
 
 
 def _build_company_dict(raw: dict[str, str]) -> dict[str, Any]:
@@ -303,7 +439,7 @@ def run_batch_valuation(
 
     for data in companies_data:
         try:
-            company = _create_company(db, data, created_by)
+            company = _create_or_update_company(db, data, created_by)
             valuation = run_company_valuation(
                 db=db,
                 company=company,
@@ -346,19 +482,36 @@ def run_batch_valuation(
     return results
 
 
-def _create_company(
+def _create_or_update_company(
     db: Session,
     data: dict[str, Any],
     created_by: str,
 ) -> Company:
-    """Create a new company from batch data. Always creates a fresh record."""
-    company = Company(
-        name=data["name"],
-        stage=data.get("stage", "seed"),
-        sector=data.get("sector", "information_technology"),
-        revenue_status=data.get("revenue_status", "pre_revenue"),
-        created_by=created_by,
+    """Create or update a company from batch data.
+
+    If a company with the same name already exists for this user, update it
+    in place so re-imports reconcile rather than creating duplicates.
+    """
+    existing = (
+        db.query(Company)
+        .filter(Company.name == data["name"], Company.created_by == created_by)
+        .first()
     )
+
+    if existing:
+        company = existing
+        company.stage = data.get("stage", company.stage)
+        company.sector = data.get("sector", company.sector)
+        company.revenue_status = data.get("revenue_status", company.revenue_status)
+    else:
+        company = Company(
+            name=data["name"],
+            stage=data.get("stage", "seed"),
+            sector=data.get("sector", "information_technology"),
+            revenue_status=data.get("revenue_status", "pre_revenue"),
+            created_by=created_by,
+        )
+        db.add(company)
 
     if "current_revenue" in data:
         company.current_revenue = data["current_revenue"]
@@ -379,7 +532,6 @@ def _create_company(
     if "external_mapping" in data:
         company.external_mapping = data["external_mapping"]
 
-    db.add(company)
     db.flush()
     return company
 
