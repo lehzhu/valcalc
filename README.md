@@ -42,11 +42,11 @@ Requires Python 3.12+ and Node 18+. SQLite (no external database needed).
 
 ## Usage
 
-1. **Dashboard** -- view all companies and their latest valuations
-2. **New Valuation** -- create a company with stage, sector, revenue status
-3. **Workspace** -- run methods tab-by-tab, adjust assumptions, view sensitivity, reconcile with weights
-4. **Save** -- persists versioned valuation with full audit trail
-5. **Export** -- PDF memo, Excel workbook, or JSON
+1. **Dashboard** - view all companies and their latest valuations
+2. **New Valuation** - create a company with stage, sector, revenue status
+3. **Workspace** - run methods tab-by-tab, adjust assumptions, view sensitivity, reconcile with weights
+4. **Save** - persists versioned valuation with full audit trail
+5. **Export** - PDF memo, Excel workbook, or JSON
 
 ## Stack
 
@@ -54,9 +54,10 @@ Requires Python 3.12+ and Node 18+. SQLite (no external database needed).
 **Frontend:** React 19, TypeScript, Tailwind CSS v4, Vite 8
 **Tests:** 65 unit/integration tests (`pytest tests/`)
 
-## If I Had More Time
+## Extension
 
-- **Real benchmark data** -- current sector multiples are mock (flagged in source). Production would pull from PitchBook or S&P Capital IQ.
-- **Comparable company selection** -- let auditors pick specific public comps instead of relying on sector medians.
-- **Multi-user collaboration** -- reviewer/approver workflow with sign-off tracking.
-- **Historical market index integration** -- replace sector trend factors with actual index performance for Last Round method.
+- **Better benchmark data** - current sector multiples are static and manually researched. Production would pull from PitchBook or S&P Capital IQ.
+- **Comparable company selection** - let auditors pick specific public comps instead of relying on sector medians.
+- **Multi-user collaboration** - reviewer/approver workflow with sign-off tracking.
+- **Data integration** - Netsuite, Carta, Microsoft Dynamics
+- **Historical market index integration** - replace sector trend factors with actual index performance for Last Round method.
