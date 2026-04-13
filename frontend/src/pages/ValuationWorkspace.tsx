@@ -1,19 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { getCompany, updateCompany, runMethod, runValuation, listSectors, runSensitivity } from '../api/client'
-import type { SensitivityResult, ParsedImport } from '../api/client'
-import type { Company, MethodResultOut, BenchmarkSector, FundingRound, ProjectionPeriod } from '../types'
-import RangeBar from '../components/RangeBar'
-import SensitivityTable from '../components/SensitivityTable'
-import WeightingPanel from '../components/WeightingPanel'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { getCompany, updateCompany, runMethod, runValuation, listSectors } from '../api/client'
+import type { ParsedImport } from '../api/client'
+import type { Company, MethodResultOut, BenchmarkSector, FundingRound, ProjectionPeriod, CompanyCreate } from '../types'
 import DocumentUpload from '../components/DocumentUpload'
-import { formatLabel } from '../utils/labels'
 
 const METHOD_TABS = [
   { key: 'last_round_adjusted', label: 'Last Round' },
   { key: 'comps', label: 'Comps' },
   { key: 'dcf', label: 'DCF' },
-  { key: 'manual', label: 'Manual' },
 ] as const
 
 type TabKey = typeof METHOD_TABS[number]['key']
@@ -27,22 +22,16 @@ function formatCurrency(value: string | number): string {
   return `$${num.toFixed(0)}`
 }
 
-/* ------------------------------------------------------------------ */
-/*  Override-aware assumption display                                  */
-/* ------------------------------------------------------------------ */
 function parseAssumptionValue(value: string): number | null {
-  // Try to extract a numeric value from assumption strings like "20%", "-5%", "8.2x", "0.75"
-  const pctMatch = value.match(/^-?(\d+(?:\.\d+)?)%$/)
+  const pctMatch = value.match(/^-?(\d+(?:\.\d+)?)%/)
   if (pctMatch) return parseFloat(pctMatch[1]) / 100
-  const negPctMatch = value.match(/^-(\d+(?:\.\d+)?)%$/)
-  if (negPctMatch) return parseFloat(negPctMatch[1]) / 100
   const xMatch = value.match(/^(\d+(?:\.\d+)?)x$/)
   if (xMatch) return parseFloat(xMatch[1])
   const num = parseFloat(value)
   return isNaN(num) ? null : num
 }
 
-function getOverrideKey(assumptionName: string): string | null {
+function getOverrideKey(name: string): string | null {
   const map: Record<string, string> = {
     'Discount rate (WACC)': 'discount_rate',
     'Terminal growth rate': 'terminal_growth_rate',
@@ -51,528 +40,107 @@ function getOverrideKey(assumptionName: string): string | null {
     'DLOM (illiquidity discount)': 'dlom',
     'Time decay rate': 'time_decay_rate',
     'Sector trend adjustment': 'sector_trend',
+    'Market/sector adjustment': 'sector_trend',
   }
-  return map[assumptionName] || null
+  return map[name] || null
 }
 
-
 /* ------------------------------------------------------------------ */
-/*  Result display (shared across tabs)                               */
+/*  Waterfall chart for calibration steps                             */
 /* ------------------------------------------------------------------ */
-function MethodResultDisplay({
-  result, debug, overrides, onOverrideChange,
-}: {
-  result: MethodResultOut
-  debug: boolean
-  overrides: Record<string, number>
-  onOverrideChange: (key: string, value: number) => void
-}) {
-  const [stepsOpen, setStepsOpen] = useState(false)
-  const [editingKey, setEditingKey] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
+function CalibrationWaterfall({ steps }: { steps: MethodResultOut['steps'] }) {
+  if (steps.length < 2) return null
 
-  const startEdit = (name: string, value: string) => {
-    const key = getOverrideKey(name)
-    if (!key) return
-    const num = parseAssumptionValue(value)
-    if (num === null) return
-    setEditingKey(key)
-    // Show as percentage or multiplier depending on context
-    if (value.includes('%')) {
-      setEditValue(String(Math.round(num * 100)))
-    } else if (value.includes('x')) {
-      setEditValue(String(num))
-    } else {
-      setEditValue(String(num))
-    }
+  // Extract values from steps (forward order: anchor → conclusion)
+  const bars: { label: string; value: number; delta: number }[] = []
+  let prevValue = 0
+
+  for (const step of steps) {
+    const raw = step.output.replace(/[^0-9.BMK$-]/g, '')
+    let value = 0
+    if (step.output.includes('B')) value = parseFloat(raw) * 1e9
+    else if (step.output.includes('M')) value = parseFloat(raw) * 1e6
+    else if (step.output.includes('K')) value = parseFloat(raw) * 1e3
+    else value = parseFloat(raw) || 0
+
+    if (step.description.includes('(noted') || step.description.includes('Calibrated fair value')) continue
+
+    const delta = bars.length === 0 ? value : value - prevValue
+    bars.push({ label: step.description.replace(/:.*/,'').trim(), value, delta })
+    prevValue = value
   }
 
-  const commitEdit = (_name: string, originalValue: string) => {
-    if (editingKey === null) return
-    let numValue = parseFloat(editValue)
-    if (isNaN(numValue)) { setEditingKey(null); return }
-    // Convert % to decimal
-    if (originalValue.includes('%')) numValue = numValue / 100
-    onOverrideChange(editingKey, numValue)
-    setEditingKey(null)
-  }
+  if (bars.length === 0) return null
+  const maxVal = Math.max(...bars.map(b => b.value))
 
   return (
-    <div className="mt-6 space-y-4">
-      <div className="bg-indigo-50 rounded-xl p-5">
-        <p className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">Fair Value Estimate</p>
-        <p className="text-2xl font-bold text-[var(--color-primary)]">{formatCurrency(result.value)}</p>
-        <p className="text-sm text-[var(--color-text-tertiary)] mt-1">
-          Range: {formatCurrency(result.value_low)} -- {formatCurrency(result.value_high)}
-        </p>
-        <div className="mt-3">
-          <RangeBar low={parseFloat(result.value_low)} mid={parseFloat(result.value)} high={parseFloat(result.value_high)} />
-        </div>
-      </div>
-
-      {/* Reasoning Trace (reversed: conclusion first, then derivation) */}
-      {result.steps.length > 0 && (
-        <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
-          <button onClick={() => setStepsOpen(o => !o)} className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-[var(--color-surface-secondary)] transition-colors">
-            <span className="text-sm font-medium text-[var(--color-text-primary)]">Reasoning Trace</span>
-            <span className="text-xs text-[var(--color-text-tertiary)]">{stepsOpen ? 'Collapse' : 'Expand'}</span>
-          </button>
-          {stepsOpen && (
-            <div className="px-4 pb-4 space-y-2">
-              {[...result.steps].reverse().map((step, i, arr) => {
-                const isConclusion = i === 0
-                const stepNum = arr.length - i
-                // A "set equation" has operators like =, ×, ÷, /, +, Σ or →
-                const isEquation = /[=×÷+\-*/Σ→∑]/.test(step.formula) && !step.formula.startsWith('sector')
-                return (
-                  <div key={i} className={`rounded-lg px-3 py-2.5 ${isConclusion ? 'bg-indigo-50 border border-indigo-200' : ''}`}>
-                    <div className="flex items-start gap-2">
-                      <span className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        isConclusion
-                          ? 'bg-[var(--color-primary)] text-white'
-                          : isEquation
-                            ? 'bg-indigo-100 text-[var(--color-primary)]'
-                            : 'bg-[var(--color-surface-tertiary)] text-[var(--color-text-tertiary)]'
-                      }`}>
-                        {isConclusion ? '✓' : stepNum}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className={`text-xs font-medium ${isConclusion ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
-                            {step.description}
-                          </p>
-                          {!isConclusion && (
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
-                              isEquation
-                                ? 'bg-indigo-50 text-indigo-600'
-                                : 'bg-gray-100 text-gray-500'
-                            }`}>
-                              {isEquation ? 'equation' : 'working'}
-                            </span>
-                          )}
-                        </div>
-                        <p className={`text-xs font-mono mt-0.5 ${isEquation ? 'text-indigo-500' : 'text-[var(--color-text-tertiary)]'}`}>{step.formula}</p>
-                        <div className="flex flex-wrap gap-3 mt-0.5">
-                          {Object.entries(step.inputs).map(([k, v]) => (
-                            <span key={k} className="text-xs text-[var(--color-text-tertiary)]">{k}: <span className="text-[var(--color-text-secondary)]">{v}</span></span>
-                          ))}
-                        </div>
-                        <p className={`text-xs font-semibold mt-0.5 ${isConclusion ? 'text-[var(--color-primary)] text-sm' : 'text-[var(--color-text-primary)]'}`}>= {step.output}</p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+    <div className="space-y-1.5">
+      {bars.map((bar, i) => {
+        const isAnchor = i === 0
+        const pct = maxVal > 0 ? (bar.value / maxVal) * 100 : 0
+        const isPositiveDelta = bar.delta >= 0
+        return (
+          <div key={i} className="flex items-center gap-3">
+            <span className="text-[11px] text-[var(--color-text-tertiary)] w-32 text-right truncate">{bar.label}</span>
+            <div className="flex-1 h-6 relative">
+              <div
+                className={`h-full rounded-r transition-all ${isAnchor ? 'bg-indigo-400' : isPositiveDelta ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                style={{ width: `${Math.max(pct, 2)}%` }}
+              />
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Assumptions — editable when overrideable */}
-      {result.assumptions.length > 0 && (
-        <div className="border border-[var(--color-border)] rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-medium text-[var(--color-text-primary)]">Assumptions</h4>
-            {Object.keys(overrides).length > 0 && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
-                {Object.keys(overrides).length} override{Object.keys(overrides).length > 1 ? 's' : ''} applied
-              </span>
-            )}
+            <span className="text-[11px] font-medium text-[var(--color-text-secondary)] w-16 text-right">
+              {isAnchor ? '' : (bar.delta >= 0 ? '+' : '')}{isAnchor ? '' : formatCurrency(bar.delta)}
+            </span>
+            <span className="text-[11px] font-semibold text-[var(--color-text-primary)] w-16 text-right">{formatCurrency(bar.value)}</span>
           </div>
-          <div className="space-y-2">
-            {result.assumptions.map((a, i) => {
-              const overrideKey = getOverrideKey(a.name)
-              const isOverridden = overrideKey ? overrideKey in overrides : false
-              const isEditing = editingKey === overrideKey
-              return (
-                <div key={i} className={`flex items-start gap-2 text-xs rounded-md px-1.5 py-1 ${isOverridden ? 'bg-amber-50' : ''}`}>
-                  <span className="font-medium text-[var(--color-text-secondary)] min-w-[120px]">{a.name}</span>
-                  {isEditing ? (
-                    <span className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        step="any"
-                        value={editValue}
-                        onChange={e => setEditValue(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') commitEdit(a.name, a.value); if (e.key === 'Escape') setEditingKey(null) }}
-                        onBlur={() => commitEdit(a.name, a.value)}
-                        className="w-16 px-1.5 py-0.5 rounded border border-[var(--color-primary)] text-xs bg-white focus:outline-none"
-                        autoFocus
-                      />
-                      <span className="text-[var(--color-text-tertiary)]">{a.value.includes('%') ? '%' : a.value.includes('x') ? 'x' : ''}</span>
-                    </span>
-                  ) : (
-                    <span
-                      className={`${a.overrideable ? 'cursor-pointer hover:text-[var(--color-primary)] hover:underline' : ''} ${isOverridden ? 'text-amber-700 font-semibold' : 'text-[var(--color-text-primary)]'}`}
-                      onClick={() => a.overrideable && startEdit(a.name, a.value)}
-                      title={a.overrideable ? 'Click to override' : undefined}
-                    >
-                      {a.value}
-                      {isOverridden && <span className="ml-1 text-[9px] text-amber-600">(override)</span>}
-                    </span>
-                  )}
-                  <span className="text-[var(--color-text-tertiary)] flex-1">-- {a.rationale}</span>
-                  {a.source && <span className="text-[var(--color-text-tertiary)] italic text-[10px]">{a.source}</span>}
-                  {debug && (
-                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-100 text-[var(--color-primary)] text-[9px] font-bold cursor-help" title={`Overrideable: ${a.overrideable ? 'Yes' : 'No'}${a.source ? ` | Source: ${a.source}` : ''}`}>i</span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Sources */}
-      {result.sources.length > 0 && (
-        <div className="text-xs text-[var(--color-text-tertiary)]">
-          Sources: {result.sources.map(s => `${s.name} v${s.version} (${s.effective_date})`).join(', ')}
-        </div>
-      )}
+        )
+      })}
     </div>
   )
 }
 
 /* ------------------------------------------------------------------ */
-/*  Last Round tab                                                    */
+/*  Method comparison bar chart                                       */
 /* ------------------------------------------------------------------ */
-function LastRoundTab({ company, debug, onCompanyUpdate, onResult }: { company: Company; debug: boolean; onCompanyUpdate: (c: Company) => void; onResult: (method: string, result: MethodResultOut) => void }) {
-  const [roundDate, setRoundDate] = useState(company.last_round_date ?? '')
-  const [preMoneyVal, setPreMoneyVal] = useState(company.last_round_valuation ?? '')
-  const [amountRaised, setAmountRaised] = useState(company.last_round_amount ?? '')
-  const [leadInvestor, setLeadInvestor] = useState(company.last_round_investor ?? '')
-  const [running, setRunning] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [result, setResult] = useState<MethodResultOut | null>(null)
-  const [error, setError] = useState('')
-  const [overrides, setOverrides] = useState<Record<string, number>>({})
+function MethodComparisonBars({ results }: { results: Record<string, MethodResultOut> }) {
+  const entries = Object.entries(results)
+  if (entries.length < 2) return null
 
-  const saveAndRun = async (overrideValues?: Record<string, number>) => {
-    setRunning(true)
-    setError('')
-    try {
-      const lastRound: FundingRound = {
-        date: roundDate,
-        pre_money_valuation: preMoneyVal,
-        amount_raised: amountRaised || '0',
-        lead_investor: leadInvestor || undefined,
-      }
-      const updated = await updateCompany(company.id, { last_round: lastRound })
-      onCompanyUpdate(updated)
-      const activeOverrides = overrideValues ?? overrides
-      const res = await runMethod(company.id, 'last_round_adjusted', {
-        overrides: Object.keys(activeOverrides).length > 0 ? activeOverrides : undefined,
-      })
-      setResult(res)
-      onResult('last_round_adjusted', res)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run method')
-    } finally {
-      setRunning(false)
-    }
+  const maxVal = Math.max(...entries.map(([, r]) => parseFloat(r.value_high)))
+  const colors: Record<string, string> = {
+    last_round_adjusted: 'bg-indigo-500',
+    comps: 'bg-emerald-500',
+    dcf: 'bg-amber-500',
   }
-
-  const handleOverrideChange = (key: string, value: number) => {
-    const newOverrides = { ...overrides, [key]: value }
-    setOverrides(newOverrides)
-    saveAndRun(newOverrides)
+  const labels: Record<string, string> = {
+    last_round_adjusted: 'Last Round',
+    comps: 'Comps',
+    dcf: 'DCF',
   }
-
-  const saveInputs = async () => {
-    setSaving(true)
-    try {
-      const lastRound: FundingRound = {
-        date: roundDate,
-        pre_money_valuation: preMoneyVal,
-        amount_raised: amountRaised || '0',
-        lead_investor: leadInvestor || undefined,
-      }
-      const updated = await updateCompany(company.id, { last_round: lastRound })
-      onCompanyUpdate(updated)
-    } catch {
-      /* silent */
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm bg-[var(--color-surface)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] focus:border-transparent"
-  const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
 
   return (
-    <div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div><label className={labelClass}>Round Date</label><input type="date" value={roundDate} onChange={e => setRoundDate(e.target.value)} onBlur={saveInputs} className={inputClass} /></div>
-        <div><label className={labelClass}>Lead Investor</label><input type="text" value={leadInvestor} onChange={e => setLeadInvestor(e.target.value)} onBlur={saveInputs} className={inputClass} placeholder="e.g., Sequoia" /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-4 mb-5">
-        <div><label className={labelClass}>Pre-Money Valuation ($)</label><input type="number" value={preMoneyVal} onChange={e => setPreMoneyVal(e.target.value)} onBlur={saveInputs} className={inputClass} placeholder="e.g., 30000000" /></div>
-        <div><label className={labelClass}>Amount Raised ($)</label><input type="number" value={amountRaised} onChange={e => setAmountRaised(e.target.value)} onBlur={saveInputs} className={inputClass} placeholder="e.g., 10000000" /></div>
-      </div>
-
-      <button onClick={() => saveAndRun()} disabled={running || !roundDate || !preMoneyVal}
-        className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
-        {running ? 'Running...' : saving ? 'Saving...' : 'Run Last Round'}
-      </button>
-
-      {error && <p className="mt-3 text-sm text-[var(--color-danger)]">{error}</p>}
-      {result && <MethodResultDisplay result={result} debug={debug} overrides={overrides} onOverrideChange={handleOverrideChange} />}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Comps tab                                                         */
-/* ------------------------------------------------------------------ */
-function CompsTab({ company, debug, sectors, onCompanyUpdate, onResult }: { company: Company; debug: boolean; sectors: BenchmarkSector[]; onCompanyUpdate: (c: Company) => void; onResult: (method: string, result: MethodResultOut) => void }) {
-  const [revenue, setRevenue] = useState(company.current_revenue ?? '')
-  const [sector, setSector] = useState(company.sector)
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<MethodResultOut | null>(null)
-  const [error, setError] = useState('')
-  const [overrides, setOverrides] = useState<Record<string, number>>({})
-
-  const saveAndRun = async (overrideValues?: Record<string, number>) => {
-    setRunning(true)
-    setError('')
-    try {
-      const updated = await updateCompany(company.id, { current_revenue: revenue || undefined, sector })
-      onCompanyUpdate(updated)
-      const activeOverrides = overrideValues ?? overrides
-      const res = await runMethod(company.id, 'comps', {
-        overrides: Object.keys(activeOverrides).length > 0 ? activeOverrides : undefined,
-      })
-      setResult(res)
-      onResult('comps', res)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run method')
-    } finally {
-      setRunning(false)
-    }
-  }
-
-  const handleOverrideChange = (key: string, value: number) => {
-    const newOverrides = { ...overrides, [key]: value }
-    setOverrides(newOverrides)
-    saveAndRun(newOverrides)
-  }
-
-  const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm bg-[var(--color-surface)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] focus:border-transparent"
-  const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
-
-  return (
-    <div>
-      <div className="grid grid-cols-2 gap-4 mb-5">
-        <div><label className={labelClass}>Current Annual Revenue ($)</label><input type="number" value={revenue} onChange={e => setRevenue(e.target.value)} className={inputClass} placeholder="e.g., 5000000" /></div>
-        <div><label className={labelClass}>Sector</label>
-          <select value={sector} onChange={e => setSector(e.target.value)} className={inputClass}>
-            {sectors.map(s => <option key={s.key} value={s.key}>{s.display_name}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <button onClick={() => saveAndRun()} disabled={running}
-        className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
-        {running ? 'Running...' : 'Run Comps'}
-      </button>
-
-      {error && <p className="mt-3 text-sm text-[var(--color-danger)]">{error}</p>}
-      {result && <MethodResultDisplay result={result} debug={debug} overrides={overrides} onOverrideChange={handleOverrideChange} />}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  DCF tab                                                           */
-/* ------------------------------------------------------------------ */
-function DCFTab({ company, debug, onCompanyUpdate, onResult }: { company: Company; debug: boolean; onCompanyUpdate: (c: Company) => void; onResult: (method: string, result: MethodResultOut) => void }) {
-  const currentYear = new Date().getFullYear()
-  const existingPeriods = (company.projections as { periods?: ProjectionPeriod[] } | undefined)?.periods
-
-  const [rows, setRows] = useState<{ year: number; revenue: string; ebitda: string; growth_rate: string }[]>(() => {
-    if (existingPeriods && existingPeriods.length > 0) {
-      return existingPeriods.map(p => ({
-        year: p.year,
-        revenue: p.revenue ?? '',
-        ebitda: p.ebitda ?? '',
-        growth_rate: p.growth_rate != null ? String(Math.round(p.growth_rate * 100)) : '',
-      }))
-    }
-    return [
-      { year: currentYear + 1, revenue: '', ebitda: '', growth_rate: '' },
-      { year: currentYear + 2, revenue: '', ebitda: '', growth_rate: '' },
-      { year: currentYear + 3, revenue: '', ebitda: '', growth_rate: '' },
-    ]
-  })
-  const [notes, setNotes] = useState(company.auditor_notes ?? '')
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<MethodResultOut | null>(null)
-  const [error, setError] = useState('')
-  const [overrides, setOverrides] = useState<Record<string, number>>({})
-  const [sensitivity, setSensitivity] = useState<SensitivityResult | null>(null)
-  const [loadingSens, setLoadingSens] = useState(false)
-
-  const updateRow = (index: number, field: string, value: string) => {
-    setRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
-  }
-
-  const addRow = () => {
-    const lastYear = rows.length > 0 ? rows[rows.length - 1].year : currentYear
-    setRows(prev => [...prev, { year: lastYear + 1, revenue: '', ebitda: '', growth_rate: '' }])
-  }
-
-  const removeRow = (index: number) => {
-    if (rows.length <= 1) return
-    setRows(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const saveAndRun = async (overrideValues?: Record<string, number>) => {
-    setRunning(true)
-    setError('')
-    try {
-      const periods = rows.filter(r => r.revenue).map(r => ({
-        year: r.year,
-        revenue: r.revenue,
-        ebitda: r.ebitda || undefined,
-        growth_rate: r.growth_rate ? parseFloat(r.growth_rate) / 100 : undefined,
-      }))
-      const updated = await updateCompany(company.id, {
-        projections: { periods },
-        auditor_notes: notes || undefined,
-      })
-      onCompanyUpdate(updated)
-      const activeOverrides = overrideValues ?? overrides
-      const res = await runMethod(company.id, 'dcf', {
-        overrides: Object.keys(activeOverrides).length > 0 ? activeOverrides : undefined,
-      })
-      setResult(res)
-      onResult('dcf', res)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run method')
-    } finally {
-      setRunning(false)
-    }
-  }
-
-  const handleOverrideChange = (key: string, value: number) => {
-    const newOverrides = { ...overrides, [key]: value }
-    setOverrides(newOverrides)
-    saveAndRun(newOverrides)
-  }
-
-  const loadSensitivity = async () => {
-    setLoadingSens(true)
-    try {
-      const sens = await runSensitivity(company.id)
-      setSensitivity(sens)
-    } catch {
-      /* silent */
-    } finally {
-      setLoadingSens(false)
-    }
-  }
-
-  const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm bg-[var(--color-surface)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] focus:border-transparent"
-  const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
-
-  return (
-    <div>
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <label className={labelClass}>Projected Financials</label>
-          {rows.length < 5 && (
-            <button type="button" onClick={addRow} className="text-xs text-[var(--color-primary)] hover:underline">+ Add year</button>
-          )}
-        </div>
-        <div className="space-y-2">
-          <div className="grid grid-cols-[80px_1fr_1fr_1fr_32px] gap-2 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider px-1">
-            <span>Year</span><span>Revenue ($)</span><span>EBITDA ($)</span><span>Growth %</span><span />
-          </div>
-          {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-[80px_1fr_1fr_1fr_32px] gap-2 items-center">
-              <input type="number" value={row.year} onChange={e => updateRow(i, 'year', e.target.value)} className={inputClass} />
-              <input type="number" value={row.revenue} onChange={e => updateRow(i, 'revenue', e.target.value)} className={inputClass} placeholder="Revenue" />
-              <input type="number" value={row.ebitda} onChange={e => updateRow(i, 'ebitda', e.target.value)} className={inputClass} placeholder="EBITDA" />
-              <input type="number" value={row.growth_rate} onChange={e => updateRow(i, 'growth_rate', e.target.value)} className={inputClass} placeholder="%" />
-              <button type="button" onClick={() => removeRow(i)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] text-sm" title="Remove row">&times;</button>
+    <div className="space-y-2">
+      <h4 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">Cross-check Comparison</h4>
+      {entries.map(([method, r]) => {
+        const val = parseFloat(r.value)
+        const low = parseFloat(r.value_low)
+        const high = parseFloat(r.value_high)
+        const pct = maxVal > 0 ? (val / maxVal) * 100 : 0
+        const lowPct = maxVal > 0 ? (low / maxVal) * 100 : 0
+        const highPct = maxVal > 0 ? (high / maxVal) * 100 : 0
+        return (
+          <div key={method} className="flex items-center gap-3">
+            <span className="text-xs text-[var(--color-text-secondary)] w-20">{labels[method] || method}</span>
+            <div className="flex-1 h-5 relative bg-[var(--color-surface-tertiary)] rounded">
+              {/* Range band */}
+              <div className="absolute h-full rounded opacity-20" style={{ left: `${lowPct}%`, width: `${highPct - lowPct}%`, background: 'currentColor' }} />
+              {/* Value bar */}
+              <div className={`h-full rounded ${colors[method] || 'bg-gray-400'}`} style={{ width: `${pct}%` }} />
             </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mb-5">
-        <label className={labelClass}>Notes (optional)</label>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} className={`${inputClass} h-20 resize-none`} placeholder="Additional context..." />
-      </div>
-
-      <div className="flex gap-2">
-        <button onClick={() => saveAndRun()} disabled={running}
-          className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
-          {running ? 'Running...' : 'Run DCF'}
-        </button>
-        {result && (
-          <button onClick={loadSensitivity} disabled={loadingSens}
-            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-indigo-50 transition-colors disabled:opacity-40">
-            {loadingSens ? 'Loading...' : sensitivity ? 'Refresh Sensitivity' : 'Sensitivity Analysis'}
-          </button>
-        )}
-      </div>
-
-      {error && <p className="mt-3 text-sm text-[var(--color-danger)]">{error}</p>}
-      {result && <MethodResultDisplay result={result} debug={debug} overrides={overrides} onOverrideChange={handleOverrideChange} />}
-
-      {sensitivity && (
-        <div className="mt-5 border border-[var(--color-border)] rounded-lg p-4">
-          <h4 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">Sensitivity Analysis: WACC vs Terminal Growth</h4>
-          <SensitivityTable data={sensitivity} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Manual tab                                                        */
-/* ------------------------------------------------------------------ */
-function ManualTab({ company }: { company: Company }) {
-  const [fairValue, setFairValue] = useState('')
-  const [justification, setJustification] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  const handleSave = async () => {
-    setSaving(true)
-    setSaved(false)
-    try {
-      await updateCompany(company.id, {
-        auditor_notes: `MANUAL OVERRIDE: $${fairValue} -- ${justification}`,
-      })
-      setSaved(true)
-    } catch {
-      /* silent */
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm bg-[var(--color-surface)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] focus:border-transparent"
-  const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
-
-  return (
-    <div>
-      <div className="mb-4">
-        <label className={labelClass}>Fair Value ($)</label>
-        <input type="number" value={fairValue} onChange={e => setFairValue(e.target.value)} className={inputClass} placeholder="e.g., 50000000" />
-      </div>
-      <div className="mb-5">
-        <label className={labelClass}>Justification</label>
-        <textarea value={justification} onChange={e => setJustification(e.target.value)} className={`${inputClass} h-28 resize-none`} placeholder="Explain the rationale for this manual override..." />
-      </div>
-      <button onClick={handleSave} disabled={saving || !fairValue || !justification}
-        className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
-        {saving ? 'Saving...' : 'Set Manual Override'}
-      </button>
-      {saved && <p className="mt-3 text-sm text-[var(--color-success)]">Manual override saved.</p>}
+            <span className="text-xs font-semibold text-[var(--color-text-primary)] w-16 text-right">{formatCurrency(val)}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -582,148 +150,436 @@ function ManualTab({ company }: { company: Company }) {
 /* ------------------------------------------------------------------ */
 export default function ValuationWorkspace() {
   const { companyId } = useParams<{ companyId: string }>()
-  const navigate = useNavigate()
   const [company, setCompany] = useState<Company | null>(null)
   const [sectors, setSectors] = useState<BenchmarkSector[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('last_round_adjusted')
   const [debug, setDebug] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [savingValuation, setSavingValuation] = useState(false)
+  const [methodResults, setMethodResults] = useState<Record<string, MethodResultOut>>({})
+  const [overrides, setOverrides] = useState<Record<string, number>>({})
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState('')
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved'>('idle')
 
-  // Track results per method for summary bar and weighting
-  const [methodResults, setMethodResults] = useState<Partial<Record<string, MethodResultOut>>>({})
-  const [methodWeights, setMethodWeights] = useState<Record<string, number> | null>(null)
+  // Company detail editing state
+  const [editStage, setEditStage] = useState('')
+  const [editSector, setEditSector] = useState('')
+  const [editRevenueStatus, setEditRevenueStatus] = useState('')
+  const [editRevenue, setEditRevenue] = useState('')
+  const [editRoundDate, setEditRoundDate] = useState('')
+  const [editPreMoney, setEditPreMoney] = useState('')
+  const [editAmountRaised, setEditAmountRaised] = useState('')
+  const [editLeadInvestor, setEditLeadInvestor] = useState('')
+
+  // Assumption editing
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+
+  // Toggle debug with Ctrl+D
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.ctrlKey && e.key === 'd') { e.preventDefault(); setDebug(d => !d) } }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  // Auto-save debounce
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingChanges = useRef(false)
 
   useEffect(() => {
     if (!companyId) return
     Promise.all([getCompany(companyId), listSectors()])
-      .then(([c, s]) => { setCompany(c); setSectors(s) })
+      .then(([c, s]) => {
+        setCompany(c)
+        setSectors(s)
+        // Init edit state
+        setEditStage(c.stage)
+        setEditSector(c.sector)
+        setEditRevenueStatus(c.revenue_status)
+        setEditRevenue(c.current_revenue ?? '')
+        setEditRoundDate(c.last_round_date ?? '')
+        setEditPreMoney(c.last_round_valuation ?? '')
+        setEditAmountRaised(c.last_round_amount ?? '')
+        setEditLeadInvestor(c.last_round_investor ?? '')
+      })
       .finally(() => setLoading(false))
   }, [companyId])
 
-  const handleCompanyUpdate = useCallback((c: Company) => { setCompany(c) }, [])
+  // Schedule auto-save + recompute 5s after a field change
+  const scheduleAutoSave = useCallback(() => {
+    pendingChanges.current = true
+    setAutoSaveStatus('pending')
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      pendingChanges.current = false
+      doSaveAndRun()
+    }, 5000)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleMethodResult = useCallback((method: string, result: MethodResultOut) => {
-    setMethodResults(prev => ({ ...prev, [method]: result }))
-  }, [])
+  // Save company data + run active method
+  const doSaveAndRun = useCallback(async () => {
+    if (!companyId || !company) return
+    setAutoSaveStatus('saving')
+    setError('')
+    try {
+      const update: Partial<CompanyCreate> = {
+        stage: editStage,
+        sector: editSector,
+        revenue_status: editRevenueStatus,
+        current_revenue: editRevenue || undefined,
+      }
+      if (editRoundDate && editPreMoney) {
+        update.last_round = {
+          date: editRoundDate,
+          pre_money_valuation: editPreMoney,
+          amount_raised: editAmountRaised || '0',
+          lead_investor: editLeadInvestor || undefined,
+        }
+      }
+      const updated = await updateCompany(companyId, update)
+      setCompany(updated)
+
+      // Run active method
+      const res = await runMethod(companyId, activeTab, {
+        overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+      }).catch(() => null)
+
+      if (res) {
+        setMethodResults(prev => ({ ...prev, [activeTab]: res }))
+      }
+
+      // Also auto-save as a valuation
+      const user = localStorage.getItem('vc-audit-user') || 'Auditor'
+      await runValuation(companyId, { created_by: user }).catch(() => {})
+
+      setAutoSaveStatus('saved')
+      setTimeout(() => setAutoSaveStatus('idle'), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save')
+      setAutoSaveStatus('idle')
+    }
+  }, [companyId, company, editStage, editSector, editRevenueStatus, editRevenue, editRoundDate, editPreMoney, editAmountRaised, editLeadInvestor, activeTab, overrides])
+
+  // Manual run
+  const handleRun = async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    setRunning(true)
+    await doSaveAndRun()
+    setRunning(false)
+  }
+
+  // Handle field changes — schedule auto-save
+  const onFieldChange = useCallback((setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setter(e.target.value)
+    scheduleAutoSave()
+  }, [scheduleAutoSave])
+
+  const handleOverrideChange = useCallback((key: string, value: number) => {
+    setOverrides(prev => {
+      const next = { ...prev, [key]: value }
+      return next
+    })
+    scheduleAutoSave()
+  }, [scheduleAutoSave])
 
   const handleImport = useCallback(async (data: ParsedImport) => {
     if (!companyId) return
-    const update: Record<string, unknown> = {}
-    if (data.current_revenue) update.current_revenue = data.current_revenue
-    if (data.last_round) update.last_round = data.last_round
+    const update: Partial<CompanyCreate> = {}
+    if (data.current_revenue) { update.current_revenue = data.current_revenue; setEditRevenue(data.current_revenue) }
+    if (data.stage) { update.stage = data.stage; setEditStage(data.stage) }
+    if (data.sector) { update.sector = data.sector; setEditSector(data.sector) }
+    if (data.revenue_status) { update.revenue_status = data.revenue_status; setEditRevenueStatus(data.revenue_status) }
+    if (data.last_round) {
+      update.last_round = data.last_round as FundingRound
+      setEditRoundDate(data.last_round.date)
+      setEditPreMoney(data.last_round.pre_money_valuation)
+      setEditAmountRaised(data.last_round.amount_raised)
+      if (data.last_round.lead_investor) setEditLeadInvestor(data.last_round.lead_investor)
+    }
     if (data.projections) update.projections = data.projections
-    if (data.stage) update.stage = data.stage
-    if (data.sector) update.sector = data.sector
-    if (data.revenue_status) update.revenue_status = data.revenue_status
     if (Object.keys(update).length > 0) {
-      const updated = await updateCompany(companyId, update as Partial<import('../types').CompanyCreate>)
+      const updated = await updateCompany(companyId, update)
       setCompany(updated)
     }
-  }, [companyId])
+    scheduleAutoSave()
+  }, [companyId, scheduleAutoSave])
 
-  const handleSaveValuation = async () => {
-    if (!companyId) return
-    setSavingValuation(true)
-    try {
-      const user = localStorage.getItem('vc-audit-user') || 'Auditor'
-      const valuation = await runValuation(companyId, {
-        created_by: user,
-        method_weights: methodWeights ?? undefined,
-      })
-      navigate(`/valuations/${valuation.id}`)
-    } catch (err) {
-      console.error(err)
-      setSavingValuation(false)
-    }
+  const startEdit = (name: string, value: string) => {
+    const key = getOverrideKey(name)
+    if (!key) return
+    const num = parseAssumptionValue(value)
+    if (num === null) return
+    setEditingKey(key)
+    setEditValue(value.includes('%') ? String(Math.round(num * 100)) : String(num))
+  }
+
+  const commitEdit = (_name: string, originalValue: string) => {
+    if (editingKey === null) return
+    let numValue = parseFloat(editValue)
+    if (isNaN(numValue)) { setEditingKey(null); return }
+    if (originalValue.includes('%')) numValue = numValue / 100
+    handleOverrideChange(editingKey, numValue)
+    setEditingKey(null)
   }
 
   if (loading) return <div className="text-center py-16 text-[var(--color-text-tertiary)]">Loading...</div>
   if (!company) return <div className="text-center py-16 text-[var(--color-text-tertiary)]">Company not found</div>
 
-  const runMethodCount = Object.keys(methodResults).length
+  const result = methodResults[activeTab]
+  const hasResult = !!result
+  const hasSufficientData = activeTab === 'last_round_adjusted' ? !!(editRoundDate && editPreMoney) :
+    activeTab === 'comps' ? !!editRevenue :
+    activeTab === 'dcf' ? !!(company.projections as { periods?: ProjectionPeriod[] } | undefined)?.periods?.length : false
+
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm bg-[var(--color-surface)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] focus:border-transparent"
+  const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+
+  const STAGES = [
+    { value: 'pre_seed', label: 'Pre-Seed' },
+    { value: 'seed', label: 'Seed' },
+    { value: 'series_a', label: 'Series A' },
+    { value: 'series_b', label: 'Series B' },
+    { value: 'series_c_plus', label: 'Series C+' },
+    { value: 'late_pre_ipo', label: 'Late / Pre-IPO' },
+  ]
+  const REVENUE_STATUSES = [
+    { value: 'pre_revenue', label: 'Pre-Revenue' },
+    { value: 'early_revenue', label: 'Early (<$1M)' },
+    { value: 'growing_revenue', label: 'Growing ($1-10M)' },
+    { value: 'scaled_revenue', label: 'Scaled (>$10M)' },
+  ]
 
   return (
     <div className="max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      {/* ── Header ─────────────────────────────────────── */}
+      <div className="flex items-start justify-between mb-5">
         <div>
-          <Link to="/" className="text-xs text-[var(--color-primary)] hover:underline mb-1 inline-block">Back to Dashboard</Link>
+          <Link to="/" className="text-xs text-[var(--color-primary)] hover:underline mb-1 inline-block">&larr; Dashboard</Link>
           <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">{company.name}</h1>
-          <div className="flex gap-2 mt-1.5">
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-[var(--color-surface-tertiary)] text-[var(--color-text-secondary)]">{formatLabel(company.stage)}</span>
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-[var(--color-surface-tertiary)] text-[var(--color-text-secondary)]">{formatLabel(company.sector)}</span>
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-[var(--color-primary)]">{formatLabel(company.revenue_status)}</span>
+          <div className="flex items-center gap-2 mt-1.5">
+            {autoSaveStatus === 'pending' && <span className="text-[10px] text-amber-500">Unsaved changes</span>}
+            {autoSaveStatus === 'saving' && <span className="text-[10px] text-[var(--color-text-tertiary)]">Saving...</span>}
+            {autoSaveStatus === 'saved' && <span className="text-[10px] text-emerald-600">Saved</span>}
           </div>
         </div>
         <div className="flex items-center gap-3">
           <DocumentUpload onParsed={handleImport} compact />
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <span className="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">Debug</span>
-            <button
-              onClick={() => setDebug(d => !d)}
-              className={`relative w-8 h-[18px] rounded-full transition-colors ${debug ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-tertiary)] border border-[var(--color-border)]'}`}
-            >
-              <span className={`absolute top-[2px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform ${debug ? 'left-[16px]' : 'left-[2px]'}`} />
-            </button>
-          </label>
+          {debug && (
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <span className="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">Debug</span>
+              <div className={`relative w-8 h-[18px] rounded-full bg-[var(--color-primary)]`}>
+                <span className="absolute top-[2px] left-[16px] w-3.5 h-3.5 rounded-full bg-white shadow-sm" />
+              </div>
+            </label>
+          )}
         </div>
       </div>
 
-      {/* Summary Bar */}
-      <div className="flex gap-4 mb-5 text-xs">
-        {METHOD_TABS.filter(t => t.key !== 'manual').map(t => {
-          const r = methodResults[t.key]
-          return (
-            <div key={t.key} className="flex items-center gap-1.5 text-[var(--color-text-tertiary)]">
-              <span className="font-medium">{t.label}:</span>
-              <span className={r ? 'text-[var(--color-text-primary)] font-semibold' : ''}>{r ? formatCurrency(r.value) : '--'}</span>
+      <div className="grid grid-cols-[320px_1fr] gap-6">
+        {/* ── Left: Company Details (always visible) ──── */}
+        <div className="space-y-5">
+          <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4" style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <h3 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Company Details</h3>
+            <div className="space-y-3">
+              <div>
+                <label className={labelClass}>Stage</label>
+                <select value={editStage} onChange={onFieldChange(setEditStage)} className={inputClass}>
+                  {STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Sector</label>
+                <select value={editSector} onChange={onFieldChange(setEditSector)} className={inputClass}>
+                  {sectors.map(s => <option key={s.key} value={s.key}>{s.display_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Revenue Status</label>
+                <select value={editRevenueStatus} onChange={onFieldChange(setEditRevenueStatus)} className={inputClass}>
+                  {REVENUE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Current Annual Revenue ($)</label>
+                <input type="number" value={editRevenue} onChange={onFieldChange(setEditRevenue)} className={inputClass} placeholder="e.g., 5000000" />
+              </div>
             </div>
-          )
-        })}
-      </div>
+          </div>
 
-      {/* Method Tabs */}
-      <div className="flex border-b border-[var(--color-border)] mb-0">
-        {METHOD_TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
-            className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === t.key
-                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      <div className="bg-[var(--color-surface)] rounded-b-xl border border-t-0 border-[var(--color-border)] p-6" style={{ boxShadow: 'var(--shadow-md)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}>
-        {activeTab === 'last_round_adjusted' && <LastRoundTab company={company} debug={debug} onCompanyUpdate={handleCompanyUpdate} onResult={handleMethodResult} />}
-        {activeTab === 'comps' && <CompsTab company={company} debug={debug} sectors={sectors} onCompanyUpdate={handleCompanyUpdate} onResult={handleMethodResult} />}
-        {activeTab === 'dcf' && <DCFTab company={company} debug={debug} onCompanyUpdate={handleCompanyUpdate} onResult={handleMethodResult} />}
-        {activeTab === 'manual' && <ManualTab company={company} />}
-      </div>
-
-      {/* Method Reconciliation (when 2+ methods have results) */}
-      {runMethodCount >= 2 && (
-        <div className="mt-6">
-          <WeightingPanel
-            methodResults={methodResults}
-            onWeightsChange={setMethodWeights}
-          />
+          <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4" style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <h3 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Last Funding Round</h3>
+            <div className="space-y-3">
+              <div>
+                <label className={labelClass}>Round Date</label>
+                <input type="date" value={editRoundDate} onChange={onFieldChange(setEditRoundDate)} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Pre-Money Valuation ($)</label>
+                <input type="number" value={editPreMoney} onChange={onFieldChange(setEditPreMoney)} className={inputClass} placeholder="30000000" />
+              </div>
+              <div>
+                <label className={labelClass}>Amount Raised ($)</label>
+                <input type="number" value={editAmountRaised} onChange={onFieldChange(setEditAmountRaised)} className={inputClass} placeholder="10000000" />
+              </div>
+              <div>
+                <label className={labelClass}>Lead Investor</label>
+                <input type="text" value={editLeadInvestor} onChange={onFieldChange(setEditLeadInvestor)} className={inputClass} placeholder="e.g., Sequoia" />
+              </div>
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Save as Valuation */}
-      <div className="mt-6 flex justify-end">
-        <button onClick={handleSaveValuation} disabled={savingValuation}
-          className="px-6 py-2.5 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-50">
-          {savingValuation ? 'Saving...' : methodWeights ? 'Save Weighted Valuation' : 'Save as Valuation'}
-        </button>
+        {/* ── Right: Valuation ──────────────────────────── */}
+        <div className="space-y-5">
+          {/* Fair value hero */}
+          {hasResult ? (
+            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-6" style={{ boxShadow: 'var(--shadow-sm)' }}>
+              <p className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">Fair Value Estimate</p>
+              <p className="text-3xl font-bold text-[var(--color-text-primary)]">{formatCurrency(result.value)}</p>
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                {formatCurrency(result.value_low)} &ndash; {formatCurrency(result.value_high)} range
+              </p>
+            </div>
+          ) : (
+            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] border-dashed p-6 text-center" style={{ boxShadow: 'var(--shadow-sm)' }}>
+              {hasSufficientData ? (
+                <>
+                  <p className="text-sm text-[var(--color-text-secondary)] mb-3">Ready to compute</p>
+                  <button onClick={handleRun} disabled={running}
+                    className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
+                    {running ? 'Computing...' : 'Run Valuation'}
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-[var(--color-text-tertiary)]">Pending additional information</p>
+              )}
+            </div>
+          )}
+
+          {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+
+          {/* Method tabs */}
+          <div className="flex border-b border-[var(--color-border)]">
+            {METHOD_TABS.map(t => {
+              const r = methodResults[t.key]
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === t.key
+                      ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                      : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                  }`}
+                >
+                  {t.label}
+                  {r && <span className="ml-1.5 text-xs text-[var(--color-text-tertiary)]">{formatCurrency(r.value)}</span>}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Calibration waterfall chart */}
+          {hasResult && result.steps.length > 2 && (
+            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+              <h4 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Calibration Waterfall</h4>
+              <CalibrationWaterfall steps={result.steps} />
+            </div>
+          )}
+
+          {/* Audit trail — plain language */}
+          {hasResult && result.steps.length > 0 && (
+            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+              <h4 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">How we got here</h4>
+              <div className="space-y-2">
+                {[...result.steps].reverse().map((step, i) => {
+                  if (step.description.includes('Calibrated fair value')) return null
+                  const val = step.output
+                  return (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[var(--color-text-tertiary)] flex-shrink-0" />
+                      <p className="text-sm text-[var(--color-text-secondary)]">
+                        <span className="font-medium text-[var(--color-text-primary)]">{step.description}</span>
+                        {' '}&rarr; {val}
+                        {debug && <span className="text-[10px] text-[var(--color-text-tertiary)] ml-2 font-mono">{step.formula}</span>}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Assumptions — first-class cards */}
+          {hasResult && result.assumptions.length > 0 && (
+            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+              <h4 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Key Assumptions</h4>
+              <div className="grid grid-cols-2 gap-3">
+                {result.assumptions.map((a, i) => {
+                  const overrideKey = getOverrideKey(a.name)
+                  const isOverridden = overrideKey ? overrideKey in overrides : false
+                  const isEditing = editingKey === overrideKey
+                  return (
+                    <div key={i} className={`rounded-lg border px-3 py-2.5 ${isOverridden ? 'border-amber-300 bg-amber-50' : 'border-[var(--color-border)] bg-[var(--color-surface-secondary)]'}`}>
+                      <p className="text-[11px] text-[var(--color-text-tertiary)] mb-0.5">{a.name}</p>
+                      {isEditing ? (
+                        <span className="flex items-center gap-1">
+                          <input
+                            type="number" step="any" value={editValue}
+                            onChange={e => setEditValue(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') commitEdit(a.name, a.value); if (e.key === 'Escape') setEditingKey(null) }}
+                            onBlur={() => commitEdit(a.name, a.value)}
+                            className="w-20 px-2 py-0.5 rounded border border-[var(--color-primary)] text-sm bg-white focus:outline-none"
+                            autoFocus
+                          />
+                          <span className="text-xs text-[var(--color-text-tertiary)]">{a.value.includes('%') ? '%' : ''}</span>
+                        </span>
+                      ) : (
+                        <p
+                          className={`text-sm font-semibold ${a.overrideable ? 'cursor-pointer hover:text-[var(--color-primary)]' : ''} ${isOverridden ? 'text-amber-700' : 'text-[var(--color-text-primary)]'}`}
+                          onClick={() => a.overrideable && startEdit(a.name, a.value)}
+                          title={a.overrideable ? 'Click to override' : undefined}
+                        >
+                          {a.value}
+                          {isOverridden && <span className="ml-1 text-[10px] font-normal text-amber-600">(override)</span>}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 line-clamp-2">{a.rationale}</p>
+                      {debug && a.source && <p className="text-[9px] text-[var(--color-text-tertiary)] italic mt-0.5">{a.source}</p>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Method comparison chart (when 2+ methods have results) */}
+          {Object.keys(methodResults).length >= 2 && (
+            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+              <MethodComparisonBars results={methodResults} />
+            </div>
+          )}
+
+          {/* Sources — debug only */}
+          {debug && hasResult && result.sources.length > 0 && (
+            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4 text-xs text-[var(--color-text-tertiary)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
+              <h4 className="font-medium uppercase tracking-wider mb-2">Sources</h4>
+              {result.sources.map((s, i) => (
+                <p key={i}>{s.name} &middot; {s.version} &middot; {s.effective_date}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Run button — if result exists, show re-run */}
+          {hasResult && (
+            <div className="flex justify-end">
+              <button onClick={handleRun} disabled={running}
+                className="px-4 py-2 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-secondary)] transition-colors disabled:opacity-40">
+                {running ? 'Recomputing...' : 'Recompute Now'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
