@@ -21,7 +21,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <Link to="/" className="text-base font-semibold text-[var(--color-text-primary)] tracking-tight">
-              VC Audit
+              ValCalc
             </Link>
             <nav className="flex gap-1">
               {NAV_ITEMS.map(item => (
