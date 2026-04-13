@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { listCompanies, uploadBatch, batchTemplateUrl } from '../api/client'
+import { listCompanies, uploadBatch, batchTemplateUrl, batchExportUrl, batchRevalue } from '../api/client'
 import type { CompanyListItem } from '../types'
 import type { BatchResult } from '../api/client'
 import { formatLabel } from '../utils/labels'
@@ -22,10 +22,8 @@ type SortDir = 'asc' | 'desc'
 function formatCurrency(value: string | undefined): string {
   if (!value) return '—'
   const num = parseFloat(value)
-  if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(1)}B`
-  if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(1)}M`
-  if (num >= 1_000) return `$${(num / 1_000).toFixed(0)}K`
-  return `$${num.toFixed(0)}`
+  if (isNaN(num)) return '—'
+  return `$${Math.round(num).toLocaleString('en-US')}`
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -47,6 +45,8 @@ export default function Dashboard() {
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [revaluing, setRevaluing] = useState(false)
   const navigate = useNavigate()
 
   const loadCompanies = useCallback(() => {
@@ -90,6 +90,40 @@ export default function Dashboard() {
     setDragOver(false)
     const file = e.dataTransfer.files[0]
     if (file) handleBatchUpload(file)
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (selected.size === sorted.length) setSelected(new Set())
+    else setSelected(new Set(sorted.map(c => c.id)))
+  }
+
+  const handleBatchRevalue = async () => {
+    if (selected.size === 0) return
+    setRevaluing(true)
+    setBatchResult(null)
+    setUploadError('')
+    try {
+      const user = localStorage.getItem('vc-audit-user') || 'Auditor'
+      const result = await batchRevalue({
+        company_ids: Array.from(selected),
+        created_by: user,
+      })
+      setBatchResult(result)
+      loadCompanies()
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Re-valuation failed')
+    } finally {
+      setRevaluing(false)
+    }
   }
 
   const sorted = useMemo(() => {
@@ -141,6 +175,12 @@ export default function Dashboard() {
             onChange={e => setSearch(e.target.value)}
             className="px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm bg-[var(--color-surface)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] focus:border-transparent w-56"
           />
+          <a
+            href={batchExportUrl(selected.size > 0 ? Array.from(selected) : undefined)}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-secondary)] transition-colors"
+          >
+            Export {selected.size > 0 ? `(${selected.size})` : 'All'}
+          </a>
           <Link
             to="/valuations/new"
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-secondary)] transition-colors"
@@ -149,6 +189,21 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* ── Batch Action Bar ──────────────────────────── */}
+      {selected.size > 0 && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-2.5 rounded-lg bg-indigo-50 border border-indigo-200">
+          <span className="text-xs font-medium text-indigo-700">{selected.size} selected</span>
+          <button onClick={handleBatchRevalue} disabled={revaluing}
+            className="px-3 py-1 rounded text-xs font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-40">
+            {revaluing ? 'Re-valuing...' : 'Re-value Selected'}
+          </button>
+          <button onClick={() => setSelected(new Set())}
+            className="px-3 py-1 rounded text-xs text-indigo-600 hover:text-indigo-800 transition-colors">
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* ── Batch Upload Zone ──────────────────────────── */}
       <div
@@ -252,6 +307,21 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          {batchResult.warnings && batchResult.warnings.length > 0 && (
+            <div className="mt-4 border-t border-[var(--color-border)] pt-3">
+              <p className="text-xs font-medium text-amber-700 mb-2">
+                {batchResult.warnings.length} validation warning{batchResult.warnings.length > 1 ? 's' : ''}
+              </p>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {batchResult.warnings.map((w, i) => (
+                  <div key={i} className="flex items-start gap-2 px-3 py-1.5 rounded bg-amber-50 border border-amber-100 text-xs">
+                    <span className="font-medium text-amber-800 whitespace-nowrap">Row {w.row}</span>
+                    <span className="text-amber-700">{w.field}: {w.message}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -274,6 +344,11 @@ export default function Dashboard() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--color-border)]">
+                <th className="px-3 py-3 w-8">
+                  <input type="checkbox" checked={selected.size === sorted.length && sorted.length > 0}
+                    onChange={toggleAll}
+                    className="rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
+                </th>
                 <th className={`text-left ${thClass}`} onClick={() => handleSort('name')}>
                   Company<SortIcon active={sortKey === 'name'} dir={sortDir} />
                 </th>
@@ -294,6 +369,11 @@ export default function Dashboard() {
             <tbody>
               {sorted.map(company => (
                 <tr key={company.id} className="border-b border-[var(--color-border-light)] last:border-0 hover:bg-[var(--color-surface-secondary)] transition-colors">
+                  <td className="px-3 py-3.5 w-8">
+                    <input type="checkbox" checked={selected.has(company.id)}
+                      onChange={() => toggleSelect(company.id)}
+                      className="rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
+                  </td>
                   <td className="px-5 py-3.5">
                     <Link to={`/companies/${company.id}/workspace`} className="text-sm font-medium text-[var(--color-primary)] hover:underline">
                       {company.name}

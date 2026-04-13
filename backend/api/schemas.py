@@ -1,8 +1,21 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+StageType = Literal[
+    "pre_seed", "seed", "series_a", "series_b", "series_c_plus", "late_pre_ipo",
+]
+SectorType = Literal[
+    "information_technology", "healthcare", "financials", "consumer_discretionary",
+    "industrials", "communication_services", "energy", "materials",
+    "real_estate", "consumer_staples", "utilities",
+]
+RevenueStatusType = Literal[
+    "pre_revenue", "early_revenue", "growing_revenue", "scaled_revenue",
+]
 
 
 # --- Users ---
@@ -40,9 +53,9 @@ class FinancialProjectionsIn(BaseModel):
 
 class CompanyCreate(BaseModel):
     name: str
-    stage: str
-    sector: str
-    revenue_status: str
+    stage: StageType
+    sector: SectorType
+    revenue_status: RevenueStatusType
     current_revenue: Decimal | None = None
     last_round: FundingRoundIn | None = None
     cap_table: dict | None = None
@@ -55,9 +68,9 @@ class CompanyCreate(BaseModel):
 
 class CompanyUpdate(BaseModel):
     name: str | None = None
-    stage: str | None = None
-    sector: str | None = None
-    revenue_status: str | None = None
+    stage: StageType | None = None
+    sector: SectorType | None = None
+    revenue_status: RevenueStatusType | None = None
     current_revenue: Decimal | None = None
     last_round: FundingRoundIn | None = None
     cap_table: dict | None = None

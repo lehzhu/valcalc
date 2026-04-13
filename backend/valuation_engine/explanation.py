@@ -4,10 +4,6 @@ from valuation_engine.models import MethodType, MethodResult, ValuationResult
 
 
 def _format_currency(value: Decimal) -> str:
-    if value >= 1_000_000_000:
-        return f"${value / 1_000_000_000:.1f}B"
-    if value >= 1_000_000:
-        return f"${value / 1_000_000:.1f}M"
     return f"${value:,.0f}"
 
 

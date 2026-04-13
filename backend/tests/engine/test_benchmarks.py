@@ -8,7 +8,7 @@ def test_load_benchmarks_returns_dict():
     assert isinstance(data, dict)
     assert "metadata" in data
     assert "sectors" in data
-    assert data["metadata"]["version"] == "v2025-Q1"
+    assert data["metadata"]["version"].startswith("v")
 
 
 def test_get_sector_benchmarks_known_sector():
@@ -19,7 +19,7 @@ def test_get_sector_benchmarks_known_sector():
 
 
 def test_get_sector_benchmarks_unknown_sector():
-    with pytest.raises(KeyError, match="unknown_sector"):
+    with pytest.raises(ValueError, match="Unknown sector 'unknown_sector'"):
         get_sector_benchmarks("unknown_sector")
 
 

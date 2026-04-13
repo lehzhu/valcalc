@@ -328,6 +328,59 @@ def cmd_example(_args) -> None:
     sys.stdout.write("\n")
 
 
+def cmd_refresh(args) -> None:
+    """Refresh benchmark data from market data APIs."""
+    import logging
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO, format="  %(message)s")
+    else:
+        logging.basicConfig(level=logging.WARNING, format="  %(message)s")
+
+    from valuation_engine.market_data.refresh import refresh_benchmarks
+
+    print(f"  {_dim('Refreshing benchmarks from market data sources...')}")
+    print()
+
+    # Show which sources are available
+    from valuation_engine.market_data import finnhub_client, alphavantage
+    sources = ["SEC EDGAR (free)", "Kaggle investment data"]
+    if finnhub_client.is_available():
+        sources.append("Finnhub")
+    else:
+        print(f"  {_yellow('Finnhub:')} no API key (set FINNHUB_API_KEY)")
+    if alphavantage.is_available():
+        sources.append("Alpha Vantage")
+    else:
+        print(f"  {_yellow('Alpha Vantage:')} no API key (set ALPHAVANTAGE_API_KEY)")
+
+    print(f"  {_dim('Sources:')} {', '.join(sources)}")
+    print()
+
+    result = refresh_benchmarks()
+    if not result:
+        print(f"  {_yellow('No data fetched. Existing benchmarks unchanged.')}")
+        return
+
+    meta = result["metadata"]
+    sectors = result["sectors"]
+    print(f"  {_green('Benchmarks updated')}")
+    print(f"  {_dim('Version:')} {meta['version']}")
+    print(f"  {_dim('Source:')} {meta['source']}")
+    print(f"  {_dim('Sectors:')} {len(sectors)}")
+    print()
+
+    # Show a summary table
+    print(f"  {_dim(f'{'Sector':<28s}  {'Rev Mult':>10s}  {'Growth':>8s}  {'Trend':>8s}')}")
+    print(f"  {_dim('─' * 60)}")
+    for key, s in sectors.items():
+        rm = s.get("revenue_multiple", {})
+        med = rm.get("median", "?")
+        gr = s.get("median_growth_rate", 0)
+        tr = s.get("sector_trend_factor", 0)
+        print(f"  {s['display_name']:<28s}  {str(med) + 'x':>10s}  {gr:>7.0%}  {tr:>+7.2%}")
+    print()
+
+
 # ── Main ────────────────────────────────────────────────────────────────
 
 def main():
@@ -342,7 +395,8 @@ def main():
   python cli.py value company.json --json   Output raw JSON
   python cli.py template                    Download batch template
   python cli.py example                     Print example JSON input
-  python cli.py test                        Run test suite""",
+  python cli.py test                        Run test suite
+  python cli.py refresh                     Refresh benchmarks from live APIs""",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -377,6 +431,11 @@ def main():
     # test
     p_test = sub.add_parser("test", help="Run the test suite")
     p_test.set_defaults(func=cmd_test)
+
+    # refresh
+    p_refresh = sub.add_parser("refresh", help="Refresh benchmarks from market data APIs")
+    p_refresh.add_argument("-v", "--verbose", action="store_true", help="Show detailed progress")
+    p_refresh.set_defaults(func=cmd_refresh)
 
     args = parser.parse_args()
     if not args.command:

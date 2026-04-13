@@ -22,14 +22,18 @@ def create_valuation(company_id: UUID, body: ValuationRunRequest, db: Session = 
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    valuation = run_company_valuation(
-        db=db,
-        company=company,
-        created_by=body.created_by,
-        valuation_date=body.valuation_date,
-        method_weights=body.method_weights,
-        overrides=body.overrides,
-    )
+    try:
+        valuation = run_company_valuation(
+            db=db,
+            company=company,
+            created_by=body.created_by,
+            valuation_date=body.valuation_date,
+            method_weights=body.method_weights,
+            overrides=body.overrides,
+        )
+    except (ValueError, KeyError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    db.commit()
     return valuation
 
 
@@ -65,11 +69,14 @@ def run_method_preview(company_id: UUID, method: str, body: MethodRunRequest, db
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    engine_input = _company_to_engine_input(company)
+    try:
+        engine_input = _company_to_engine_input(company)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
     overrides = {k: v for k, v in (body.overrides or {}).items()} if body.overrides else None
     try:
         result = run_single_method(VALID_METHODS[method], engine_input, body.valuation_date, overrides=overrides)
-    except ValueError as e:
+    except (ValueError, KeyError) as e:
         raise HTTPException(status_code=422, detail=str(e))
 
     if result is None:
@@ -94,4 +101,5 @@ def override_valuation(valuation_id: UUID, body: OverrideRequest, db: Session = 
         justification=body.justification,
         created_by=body.created_by,
     )
+    db.commit()
     return updated

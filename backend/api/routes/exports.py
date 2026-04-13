@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -10,22 +10,32 @@ from services.export_service import export_json, export_xlsx
 router = APIRouter(prefix="/api/v1/valuations", tags=["exports"])
 
 
-@router.get("/{valuation_id}/export/json")
-def export_as_json(valuation_id: UUID, db: Session = Depends(get_db)):
+def _load(valuation_id: UUID, db: Session):
     valuation = db.query(Valuation).filter(Valuation.id == valuation_id).first()
     if not valuation:
         raise HTTPException(status_code=404, detail="Valuation not found")
     company = db.query(Company).filter(Company.id == valuation.company_id).first()
-    return export_json(valuation, company)
+    return valuation, company
+
+
+@router.get("/{valuation_id}/export/json")
+def export_as_json(
+    valuation_id: UUID,
+    include_justification: bool = Query(True),
+    db: Session = Depends(get_db),
+):
+    valuation, company = _load(valuation_id, db)
+    return export_json(valuation, company, include_justification=include_justification)
 
 
 @router.get("/{valuation_id}/export/xlsx")
-def export_as_xlsx(valuation_id: UUID, db: Session = Depends(get_db)):
-    valuation = db.query(Valuation).filter(Valuation.id == valuation_id).first()
-    if not valuation:
-        raise HTTPException(status_code=404, detail="Valuation not found")
-    company = db.query(Company).filter(Company.id == valuation.company_id).first()
-    content = export_xlsx(valuation, company)
+def export_as_xlsx(
+    valuation_id: UUID,
+    include_justification: bool = Query(True),
+    db: Session = Depends(get_db),
+):
+    valuation, company = _load(valuation_id, db)
+    content = export_xlsx(valuation, company, include_justification=include_justification)
     filename = f"valuation-{company.name.replace(' ', '_')}-v{valuation.version}.xlsx"
     return Response(
         content=content,
@@ -35,18 +45,22 @@ def export_as_xlsx(valuation_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.get("/{valuation_id}/export/pdf")
-def export_as_pdf(valuation_id: UUID, db: Session = Depends(get_db)):
-    valuation = db.query(Valuation).filter(Valuation.id == valuation_id).first()
-    if not valuation:
-        raise HTTPException(status_code=404, detail="Valuation not found")
-    company = db.query(Company).filter(Company.id == valuation.company_id).first()
+def export_as_pdf(
+    valuation_id: UUID,
+    include_justification: bool = Query(True),
+    db: Session = Depends(get_db),
+):
+    valuation, company = _load(valuation_id, db)
+    html = _build_pdf_html(valuation, company, include_justification)
 
-    html = _build_pdf_html(valuation, company)
     try:
         from weasyprint import HTML
         pdf_bytes = HTML(string=html).write_pdf()
     except Exception:
-        raise HTTPException(status_code=500, detail="PDF generation failed — ensure WeasyPrint dependencies are installed")
+        raise HTTPException(
+            status_code=500,
+            detail="PDF generation failed: ensure WeasyPrint dependencies are installed",
+        )
 
     filename = f"valuation-{company.name.replace(' ', '_')}-v{valuation.version}.pdf"
     return Response(
@@ -56,34 +70,78 @@ def export_as_pdf(valuation_id: UUID, db: Session = Depends(get_db)):
     )
 
 
-def _build_pdf_html(valuation, company) -> str:
+def _format_snapshot_val(val) -> str:
+    if val is None:
+        return "\u2014"
+    if isinstance(val, dict):
+        return ", ".join(f"{k}: {v}" for k, v in val.items())
+    return str(val)
+
+
+def _build_pdf_html(valuation, company, include_justification: bool = True) -> str:
     trail = valuation.audit_trail or {}
+
+    # Build method sections
     methods_html = ""
     for mr in valuation.method_results:
         steps_html = ""
         for step in mr.get("steps", []):
             inputs_str = ", ".join(f"{k}: {v}" for k, v in step.get("inputs", {}).items())
-            steps_html += f"<tr><td>{step['description']}</td><td><code>{step['formula']}</code></td><td>{inputs_str}</td><td><strong>{step['output']}</strong></td></tr>"
-        assumptions_html = ""
-        for a in mr.get("assumptions", []):
-            assumptions_html += f"<tr><td>{a['name']}</td><td>{a['value']}</td><td>{a.get('rationale', '')}</td><td>{a.get('source', '')}</td></tr>"
-        method_label = mr['method'].replace('_', ' ').title()
-        primary_tag = ' <span class="primary-tag">PRIMARY</span>' if mr.get('is_primary') else ''
+            steps_html += (
+                f"<tr><td>{step['description']}</td>"
+                f"<td><code>{step['formula']}</code></td>"
+                f"<td>{inputs_str}</td>"
+                f"<td><strong>{step['output']}</strong></td></tr>"
+            )
+
+        method_label = mr["method"].replace("_", " ").title()
+        primary_tag = ' <span class="primary-tag">PRIMARY</span>' if mr.get("is_primary") else ""
         methods_html += f"""
         <h3>{method_label}{primary_tag}</h3>
         <table><tr><th>Step</th><th>Formula</th><th>Inputs</th><th>Result</th></tr>{steps_html}</table>
         """
-        if assumptions_html:
-            methods_html += f"""
-            <h4>Assumptions</h4>
-            <table><tr><th>Assumption</th><th>Value</th><th>Rationale</th><th>Source</th></tr>{assumptions_html}</table>
-            """
 
-    # Method weights if present
+        if include_justification:
+            assumptions_html = ""
+            for a in mr.get("assumptions", []):
+                assumptions_html += (
+                    f"<tr><td>{a['name']}</td><td>{a['value']}</td>"
+                    f"<td>{a.get('rationale', '')}</td><td>{a.get('source', '')}</td></tr>"
+                )
+            if assumptions_html:
+                methods_html += f"""
+                <h4>Assumptions &amp; Justifications</h4>
+                <table><tr><th>Assumption</th><th>Value</th><th>Rationale</th><th>Source</th></tr>{assumptions_html}</table>
+                """
+
+    # Method weights
     weights_html = ""
     if trail.get("method_weights"):
-        weights_items = ", ".join(f"{k.replace('_', ' ').title()}: {v:.0%}" for k, v in trail["method_weights"].items() if v > 0)
-        weights_html = f"<p><strong>Method Weights:</strong> {weights_items}</p>"
+        items = ", ".join(
+            f"{k.replace('_', ' ').title()}: {v:.0%}"
+            for k, v in trail["method_weights"].items() if v > 0
+        )
+        weights_html = f"<p><strong>Method Weights:</strong> {items}</p>"
+
+    # Audit trail section
+    audit_html = ""
+    if include_justification:
+        snapshot_rows = "".join(
+            f"<tr><td>{k.replace('_', ' ').title()}</td><td>{_format_snapshot_val(v)}</td></tr>"
+            for k, v in trail.get("input_snapshot", {}).items()
+        )
+        audit_html = f"""
+        <h2>Audit Trail</h2>
+        <p><strong>Method Selection:</strong> {trail.get('method_selection_rationale', 'N/A')}</p>
+        <p><strong>Benchmark Version:</strong> {trail.get('benchmark_version', 'N/A')}</p>
+        <p><strong>Engine Version:</strong> {trail.get('engine_version', 'N/A')}</p>
+
+        <h3>Input Snapshot</h3>
+        <table>
+        <tr><th>Field</th><th>Value</th></tr>
+        {snapshot_rows}
+        </table>
+        """
 
     return f"""
     <html>
@@ -119,16 +177,7 @@ def _build_pdf_html(valuation, company) -> str:
         {weights_html}
         {methods_html}
 
-        <h2>Audit Trail</h2>
-        <p><strong>Method Selection:</strong> {trail.get('method_selection_rationale', 'N/A')}</p>
-        <p><strong>Benchmark Version:</strong> {trail.get('benchmark_version', 'N/A')}</p>
-        <p><strong>Engine Version:</strong> {trail.get('engine_version', 'N/A')}</p>
-
-        <h3>Input Snapshot</h3>
-        <table>
-        <tr><th>Field</th><th>Value</th></tr>
-        {"".join(f"<tr><td>{k.replace('_', ' ').title()}</td><td>{v if v is not None else '—'}</td></tr>" for k, v in trail.get('input_snapshot', {}).items())}
-        </table>
+        {audit_html}
     </body>
     </html>
     """

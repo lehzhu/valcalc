@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "source": "Early IPO Data (1935-1972), 3,507 IPOs",
+    "file": "Early_ipo_data_final.XLS",
+    "sheets": [
+      "anniver2 (anniversary returns)",
+      "calendar (calendar-year returns)"
+    ],
+    "total_ipos": 3507,
+    "year_range": "1935-1972",
+    "citation": "Private Capital Research Institute, Early IPO Data (privatecapitalresearchinstitute.org/pages/research/earlyipo.html); comparable to Ritter (1991) long-run IPO underperformance findings"
+  },
+  "post_ipo_abnormal_returns": {
+    "year_2": {
+      "n": 3101,
+      "median": -0.1667,
+      "mean": 0.1726,
+      "pct_negative": 0.6169,
+      "p25": -0.4823,
+      "p75": 0.2141
+    },
+    "year_3": {
+      "n": 2893,
+      "median": -0.1379,
+      "mean": 0.0241,
+      "pct_negative": 0.6087,
+      "p25": -0.442,
+      "p75": 0.1885
+    },
+    "year_4": {
+      "n": 2866,
+      "median": -0.1016,
+      "mean": 0.0363,
+      "pct_negative": 0.5883,
+      "p25": -0.3906,
+      "p75": 0.2143
+    },
+    "year_5": {
+      "n": 2551,
+      "median": -0.059,
+      "mean": 0.0607,
+      "pct_negative": 0.5547,
+      "p25": -0.3371,
+      "p75": 0.2361
+    },
+    "year_6": {
+      "n": 2273,
+      "median": -0.0525,
+      "mean": 0.1383,
+      "pct_negative": 0.5363,
+      "p25": -0.3471,
+      "p75": 0.2636
+    }
+  },
+  "size_effect": {
+    "quintile_1": {
+      "n": 2595,
+      "median_3yr_abnormal_return": -0.1429,
+      "mean_3yr_abnormal_return": 0.0051
+    },
+    "quintile_2": {
+      "n": 126,
+      "median_3yr_abnormal_return": -0.0911,
+      "mean_3yr_abnormal_return": 0.418
+    },
+    "quintile_3": {
+      "n": 54,
+      "median_3yr_abnormal_return": -0.1209,
+      "mean_3yr_abnormal_return": 0.0021
+    },
+    "quintile_4": {
+      "n": 22,
+      "median_3yr_abnormal_return": 0.0746,
+      "mean_3yr_abnormal_return": 0.4903
+    },
+    "quintile_5": {
+      "n": 96,
+      "median_3yr_abnormal_return": -0.1352,
+      "mean_3yr_abnormal_return": -0.0733
+    }
+  },
+  "growth_vs_value": {
+    "low_btm_growth": {
+      "n": 932,
+      "median_3yr_abnormal_return": -0.1888,
+      "description": "Low book-to-market (growth/overvalued companies)"
+    },
+    "high_btm_value": {
+      "n": 932,
+      "median_3yr_abnormal_return": -0.0653,
+      "description": "High book-to-market (value/undervalued companies)"
+    }
+  },
+  "dlom_support": {
+    "finding": "Post-IPO companies \u2014 which are MORE liquid than pre-IPO private companies \u2014 still underperform benchmarks by 16.7% (median) within 2 years. This establishes a floor for illiquidity discounts on private companies.",
+    "implication_by_stage": {
+      "pre_seed_seed": "DLOM of 30-35% supported: smallest IPOs (Q1) show -14.3% median 3yr abnormal return even WITH public market liquidity. Pre-revenue private companies warrant additional discount.",
+      "series_a_b": "DLOM of 12-20% supported: growth-stage companies (low BTM) show -18.9% median underperformance. Private companies at this stage face both illiquidity and growth-company risk.",
+      "series_c_plus": "DLOM of 7% supported: larger IPOs (Q2+) converge toward benchmark returns. Late-stage private companies approaching IPO face minimal additional illiquidity discount.",
+      "late_pre_ipo": "DLOM of 4% supported: near-IPO companies have a visible liquidity event horizon. Historical data shows abnormal returns narrow as companies mature (year 5-6 median: -5.2% to -5.9%)."
+    }
+  }
+}

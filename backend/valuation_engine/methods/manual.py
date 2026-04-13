@@ -3,8 +3,6 @@ from decimal import Decimal
 from valuation_engine.models import MethodResult, MethodType, ComputationStep, Assumption, Source
 
 def _format_currency(value: Decimal) -> str:
-    if abs(value) >= 1_000_000_000: return f"${value / 1_000_000_000:.1f}B"
-    if abs(value) >= 1_000_000: return f"${value / 1_000_000:.1f}M"
     return f"${value:,.0f}"
 
 class ManualOverride:

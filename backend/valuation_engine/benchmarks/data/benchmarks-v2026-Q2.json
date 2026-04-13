@@ -1,0 +1,174 @@
+{
+  "metadata": {
+    "version": "v2026-Q2",
+    "source": "Market data refresh (Kaggle investment dataset, SEC EDGAR)",
+    "effective_date": "2026-04-12"
+  },
+  "sectors": {
+    "information_technology": {
+      "display_name": "Information Technology",
+      "revenue_multiple": {
+        "p25": 7.0,
+        "median": 12.0,
+        "p75": 20.0
+      },
+      "ebitda_multiple": {
+        "p25": 14.0,
+        "median": 22.0,
+        "p75": 32.0
+      },
+      "median_growth_rate": 1.0142,
+      "sector_trend_factor": 0.03
+    },
+    "healthcare": {
+      "display_name": "Healthcare",
+      "revenue_multiple": {
+        "p25": 5.0,
+        "median": 9.0,
+        "p75": 15.0
+      },
+      "ebitda_multiple": {
+        "p25": 12.0,
+        "median": 18.0,
+        "p75": 26.0
+      },
+      "median_growth_rate": 1.0027,
+      "sector_trend_factor": 0.02
+    },
+    "financials": {
+      "display_name": "Financials",
+      "revenue_multiple": {
+        "p25": 5.0,
+        "median": 8.5,
+        "p75": 14.0
+      },
+      "ebitda_multiple": {
+        "p25": 10.0,
+        "median": 16.0,
+        "p75": 24.0
+      },
+      "median_growth_rate": 1.06,
+      "sector_trend_factor": 0.01
+    },
+    "consumer_discretionary": {
+      "display_name": "Consumer Discretionary",
+      "revenue_multiple": {
+        "p25": 3.0,
+        "median": 6.0,
+        "p75": 10.0
+      },
+      "ebitda_multiple": {
+        "p25": 9.0,
+        "median": 14.0,
+        "p75": 20.0
+      },
+      "median_growth_rate": 1.0287,
+      "sector_trend_factor": -0.01
+    },
+    "industrials": {
+      "display_name": "Industrials",
+      "revenue_multiple": {
+        "p25": 2.5,
+        "median": 5.0,
+        "p75": 8.0
+      },
+      "ebitda_multiple": {
+        "p25": 8.0,
+        "median": 12.0,
+        "p75": 18.0
+      },
+      "median_growth_rate": 0.15,
+      "sector_trend_factor": 0.0
+    },
+    "communication_services": {
+      "display_name": "Communication Services",
+      "revenue_multiple": {
+        "p25": 4.0,
+        "median": 7.0,
+        "p75": 12.0
+      },
+      "ebitda_multiple": {
+        "p25": 10.0,
+        "median": 16.0,
+        "p75": 24.0
+      },
+      "median_growth_rate": 1.0423,
+      "sector_trend_factor": 0.01
+    },
+    "energy": {
+      "display_name": "Energy",
+      "revenue_multiple": {
+        "p25": 2.0,
+        "median": 4.0,
+        "p75": 7.0
+      },
+      "ebitda_multiple": {
+        "p25": 6.0,
+        "median": 10.0,
+        "p75": 16.0
+      },
+      "median_growth_rate": 0.12,
+      "sector_trend_factor": 0.02
+    },
+    "materials": {
+      "display_name": "Materials",
+      "revenue_multiple": {
+        "p25": 2.0,
+        "median": 4.5,
+        "p75": 7.5
+      },
+      "ebitda_multiple": {
+        "p25": 7.0,
+        "median": 11.0,
+        "p75": 16.0
+      },
+      "median_growth_rate": 0.1,
+      "sector_trend_factor": 0.0
+    },
+    "real_estate": {
+      "display_name": "Real Estate",
+      "revenue_multiple": {
+        "p25": 3.0,
+        "median": 6.0,
+        "p75": 10.0
+      },
+      "ebitda_multiple": {
+        "p25": 10.0,
+        "median": 15.0,
+        "p75": 22.0
+      },
+      "median_growth_rate": 0.12,
+      "sector_trend_factor": -0.02
+    },
+    "consumer_staples": {
+      "display_name": "Consumer Staples",
+      "revenue_multiple": {
+        "p25": 2.5,
+        "median": 5.0,
+        "p75": 8.5
+      },
+      "ebitda_multiple": {
+        "p25": 8.0,
+        "median": 13.0,
+        "p75": 18.0
+      },
+      "median_growth_rate": 0.1,
+      "sector_trend_factor": 0.0
+    },
+    "utilities": {
+      "display_name": "Utilities",
+      "revenue_multiple": {
+        "p25": 2.0,
+        "median": 4.0,
+        "p75": 6.5
+      },
+      "ebitda_multiple": {
+        "p25": 7.0,
+        "median": 11.0,
+        "p75": 15.0
+      },
+      "median_growth_rate": 0.08,
+      "sector_trend_factor": 0.01
+    }
+  }
+}

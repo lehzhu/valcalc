@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import io
@@ -62,6 +62,7 @@ def download_batch_template():
 @router.post("/batch")
 async def batch_import(
     file: UploadFile = File(...),
+    created_by: str = Form("Auditor"),
     db: Session = Depends(get_db),
 ):
     """Upload a multi-company Excel/CSV file. Creates companies and runs valuations.
@@ -76,15 +77,12 @@ async def batch_import(
         raise HTTPException(status_code=400, detail="File too large (max 50MB)")
 
     try:
-        companies_data = parse_batch_file(file.filename, content)
+        companies_data, warnings = parse_batch_file(file.filename, content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     if not companies_data:
         raise HTTPException(status_code=422, detail="No companies could be parsed from the file.")
-
-    # Extract created_by from first company or default
-    created_by = "Batch Import"
 
     results = run_batch_valuation(
         db=db,
@@ -97,4 +95,5 @@ async def batch_import(
         "succeeded": sum(1 for r in results if r["status"] == "ok"),
         "failed": sum(1 for r in results if r["status"] == "error"),
         "results": results,
+        "warnings": warnings,
     }

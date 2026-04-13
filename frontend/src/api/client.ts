@@ -67,6 +67,10 @@ export interface ParsedImport {
   projections?: {
     periods: { year: number; revenue: string; ebitda?: string; growth_rate?: number }[]
   }
+  financials?: Record<string, unknown>
+  qualitative?: Record<string, unknown>
+  cap_table?: Record<string, unknown>
+  external_mapping?: Record<string, unknown>
 }
 
 export async function uploadDocument(file: File): Promise<ParsedImport> {
@@ -97,22 +101,48 @@ export interface BatchResultItem {
   error?: string
 }
 
+export interface BatchWarning {
+  row: string
+  field: string
+  value: string
+  message: string
+}
+
 export interface BatchResult {
   total: number
   succeeded: number
   failed: number
   results: BatchResultItem[]
+  warnings?: BatchWarning[]
 }
 
-export async function uploadBatch(file: File): Promise<BatchResult> {
+export async function uploadBatch(file: File, createdBy?: string): Promise<BatchResult> {
   const form = new FormData()
   form.append('file', file)
+  form.append('created_by', createdBy || localStorage.getItem('vc-audit-user') || 'Auditor')
   const resp = await fetch(`${BASE}/import/batch`, { method: 'POST', body: form })
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({ detail: 'Upload failed' }))
     throw new Error(body.detail || `Batch upload failed (${resp.status})`)
   }
   return resp.json()
+}
+
+// Batch operations
+export const batchExportUrl = (companyIds?: string[]) => {
+  const params = companyIds?.length ? `?company_ids=${companyIds.join(',')}` : ''
+  return `${BASE}/batch/export${params}`
+}
+
+export interface BatchRevalueRequest {
+  company_ids: string[]
+  created_by: string
+  valuation_date?: string
+  overrides?: Record<string, number>
+}
+
+export async function batchRevalue(data: BatchRevalueRequest): Promise<BatchResult> {
+  return request<BatchResult>('/batch/revalue', { method: 'POST', body: JSON.stringify(data) })
 }
 
 // Benchmarks
