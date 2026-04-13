@@ -42,37 +42,89 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
 
 
 def generate_template() -> bytes:
-    """Generate a sample Excel template with two sheets."""
+    """Generate a comprehensive Excel template with all 5 data categories."""
     wb = openpyxl.Workbook()
 
-    # Sheet 1 – Company Info
+    # Sheet 1 – Transaction / Round Data
     ws1 = wb.active
-    ws1.title = "Company Info"
-    kv_rows = [
+    ws1.title = "Transaction"
+    for row in [
         ("Field", "Value", "Notes"),
         ("Company Name", "", "e.g., Acme Corp"),
         ("Stage", "", "pre_seed / seed / series_a / series_b / series_c_plus / late_pre_ipo"),
-        ("Sector", "", "e.g., saas, fintech, healthtech, ai_ml (see API /benchmarks/sectors)"),
+        ("Sector", "", "GICS: information_technology, healthcare, financials, consumer_discretionary, etc."),
         ("Revenue Status", "", "pre_revenue / early_revenue / growing_revenue / scaled_revenue"),
-        ("Current Annual Revenue", "", "e.g., 5000000"),
         ("Last Round Date", "", "YYYY-MM-DD"),
-        ("Last Round Pre-Money Valuation", "", "e.g., 30000000"),
-        ("Last Round Amount Raised", "", "e.g., 10000000"),
+        ("Last Round Pre-Money Valuation", "", "e.g., $30M or 30000000"),
+        ("Last Round Amount Raised", "", "e.g., $10M or 10000000"),
         ("Last Round Lead Investor", "", "e.g., Sequoia Capital"),
-    ]
-    for row in kv_rows:
+        ("Security Type", "", "e.g., Series A Preferred"),
+        ("Liquidation Preferences", "", "e.g., 1x non-participating"),
+        ("Option Pool %", "", "e.g., 15"),
+        ("SAFEs / Convertible Notes", "", "e.g., $2M SAFE at $8M cap"),
+        ("Convertibility", "", "e.g., Mandatory at IPO"),
+    ]:
         ws1.append(row)
     for col in range(1, 4):
-        ws1.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 32
+        ws1.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 34
 
-    # Sheet 2 – Projections
-    ws2 = wb.create_sheet("Projections")
-    ws2.append(("Year", "Revenue", "EBITDA", "Growth Rate (%)"))
+    # Sheet 2 – Financials
+    ws2 = wb.create_sheet("Financials")
+    for row in [
+        ("Field", "Value", "Notes"),
+        ("Current Annual Revenue", "", "e.g., $5M or 5000000"),
+        ("Revenue at Last Round", "", "Revenue at the time of last financing"),
+        ("Gross Margin", "", "Decimal 0-1, e.g., 0.72"),
+        ("Net Burn Rate (monthly)", "", "e.g., $200K or 200000"),
+        ("Runway (months)", "", "e.g., 18"),
+        ("Cash on Hand", "", "e.g., $3.6M"),
+        ("EBITDA (trailing)", "", "Can be negative"),
+        ("ARR", "", "If different from revenue"),
+        ("MRR", "", "Monthly recurring revenue"),
+        ("Revenue Growth YoY %", "", "e.g., 120 for 120%"),
+    ]:
+        ws2.append(row)
+    for col in range(1, 4):
+        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 34
+
+    # Sheet 3 – Forecast / Projections
+    ws3 = wb.create_sheet("Forecast")
+    ws3.append(("Year", "Revenue", "EBITDA", "Growth Rate (%)"))
     current_year = date.today().year
     for y in range(current_year + 1, current_year + 6):
-        ws2.append((y, "", "", ""))
+        ws3.append((y, "", "", ""))
     for col in range(1, 5):
-        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 18
+        ws3.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 18
+
+    # Sheet 4 – Qualitative
+    ws4 = wb.create_sheet("Qualitative")
+    for row in [
+        ("Field", "Value", "Notes"),
+        ("Board Plan Status", "", "exceeded / met / missed / on track"),
+        ("Customer Concentration", "", "low / moderate / high"),
+        ("Regulatory Risk", "", "low / moderate / high / material"),
+        ("Major Events Since Round", "", "Free text: key milestones, pivots, etc."),
+        ("Key Risks", "", "Free text: competitive threats, tech risk, etc."),
+        ("Management Changes", "", "Free text: new hires, departures"),
+    ]:
+        ws4.append(row)
+    for col in range(1, 4):
+        ws4.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 34
+
+    # Sheet 5 – External Mapping
+    ws5 = wb.create_sheet("External Mapping")
+    for row in [
+        ("Field", "Value", "Notes"),
+        ("Market Index", "", "e.g., NASDAQ Composite, S&P 500 IT"),
+        ("Index Movement Since Round %", "", "e.g., 12 for +12%"),
+        ("Comparable Public Companies", "", "Comma-separated tickers"),
+        ("Private Transaction Comps", "", "Recent private deals for context"),
+        ("409A Valuation (if available)", "", "Most recent 409A fair value"),
+        ("409A Date", "", "YYYY-MM-DD"),
+    ]:
+        ws5.append(row)
+    for col in range(1, 4):
+        ws5.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 34
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -213,6 +265,7 @@ def _extract_projections_from_rows(
 # ---------------------------------------------------------------------------
 
 _FIELD_MAP = {
+    # Core company info
     "company name": "name",
     "name": "name",
     "stage": "stage",
@@ -220,10 +273,7 @@ _FIELD_MAP = {
     "industry": "sector",
     "revenue status": "revenue_status",
     "revenue_status": "revenue_status",
-    "current revenue": "current_revenue",
-    "current annual revenue": "current_revenue",
-    "annual revenue": "current_revenue",
-    "revenue": "current_revenue",
+    # Last round
     "last round date": "lr_date",
     "round date": "lr_date",
     "funding date": "lr_date",
@@ -238,12 +288,61 @@ _FIELD_MAP = {
     "last round lead investor": "lr_investor",
     "lead investor": "lr_investor",
     "investor": "lr_investor",
+    # Cap table (→ cap_table JSON blob)
+    "security type": "ct_security_type",
+    "liquidation preferences": "ct_liquidation_preferences",
+    "option pool %": "ct_option_pool_pct",
+    "option pool": "ct_option_pool_pct",
+    "safes / convertible notes": "ct_safes_notes",
+    "safes": "ct_safes_notes",
+    "convertible notes": "ct_safes_notes",
+    "convertibility": "ct_convertibility",
+    # Financials (→ financials JSON blob)
+    "current revenue": "fin_current_revenue",
+    "current annual revenue": "fin_current_revenue",
+    "annual revenue": "fin_current_revenue",
+    "revenue": "fin_current_revenue",
+    "revenue at last round": "fin_revenue_at_last_round",
+    "gross margin": "fin_gross_margin",
+    "net burn rate": "fin_burn_rate",
+    "burn rate": "fin_burn_rate",
+    "runway": "fin_runway_months",
+    "runway (months)": "fin_runway_months",
+    "runway months": "fin_runway_months",
+    "cash on hand": "fin_cash_on_hand",
+    "ebitda": "fin_ebitda",
+    "ebitda (trailing)": "fin_ebitda",
+    "arr": "fin_arr",
+    "mrr": "fin_mrr",
+    "revenue growth yoy %": "fin_revenue_growth_yoy",
+    "revenue growth": "fin_revenue_growth_yoy",
+    # Qualitative (→ qualitative JSON blob)
+    "board plan status": "qual_board_plan_status",
+    "customer concentration": "qual_customer_concentration",
+    "regulatory risk": "qual_regulatory_risk",
+    "major events since round": "qual_major_events",
+    "major events": "qual_major_events",
+    "key risks": "qual_key_risks",
+    "management changes": "qual_management_changes",
+    # External mapping (→ external_mapping JSON blob)
+    "market index": "ext_index_name",
+    "index movement since round %": "ext_index_movement_pct",
+    "index movement": "ext_index_movement_pct",
+    "comparable public companies": "ext_public_comps",
+    "private transaction comps": "ext_private_comps",
+    "409a valuation": "ext_409a_value",
+    "409a valuation (if available)": "ext_409a_value",
+    "409a date": "ext_409a_date",
 }
 
 
 def _extract_kv_from_rows(rows: list[tuple]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     lr: dict[str, Any] = {}
+    cap_table: dict[str, Any] = {}
+    financials: dict[str, Any] = {}
+    qualitative: dict[str, Any] = {}
+    external: dict[str, Any] = {}
 
     for row in rows:
         if len(row) < 2:
@@ -265,6 +364,7 @@ def _extract_kv_from_rows(rows: list[tuple]) -> dict[str, Any]:
 
         val_str = str(val).strip()
 
+        # Core fields
         if field == "name":
             result["name"] = val_str
         elif field == "stage":
@@ -273,10 +373,8 @@ def _extract_kv_from_rows(rows: list[tuple]) -> dict[str, Any]:
             result["sector"] = _normalize_sector(val_str)
         elif field == "revenue_status":
             result["revenue_status"] = _normalize_revenue_status(val_str)
-        elif field == "current_revenue":
-            num = _parse_money(val_str)
-            if num is not None:
-                result["current_revenue"] = str(num)
+
+        # Last round
         elif field == "lr_date":
             d = _parse_date(val_str)
             if d:
@@ -292,9 +390,55 @@ def _extract_kv_from_rows(rows: list[tuple]) -> dict[str, Any]:
         elif field == "lr_investor":
             lr["lead_investor"] = val_str
 
+        # Cap table
+        elif field.startswith("ct_"):
+            cap_key = field[3:]  # strip "ct_"
+            cap_table[cap_key] = val_str
+
+        # Financials
+        elif field.startswith("fin_"):
+            fin_key = field[4:]  # strip "fin_"
+            num = _parse_money(val_str)
+            if num is not None:
+                financials[fin_key] = str(num)
+                # Also set top-level current_revenue
+                if fin_key == "current_revenue":
+                    result["current_revenue"] = str(num)
+            else:
+                financials[fin_key] = val_str
+
+        # Qualitative
+        elif field.startswith("qual_"):
+            qual_key = field[5:]  # strip "qual_"
+            qualitative[qual_key] = val_str
+
+        # External mapping
+        elif field.startswith("ext_"):
+            ext_key = field[4:]  # strip "ext_"
+            if ext_key in ("index_movement_pct", "409a_value"):
+                num = _parse_money(val_str)
+                if num is not None:
+                    external[ext_key] = str(num)
+                else:
+                    external[ext_key] = val_str
+            elif ext_key == "409a_date":
+                d = _parse_date(val_str)
+                if d:
+                    external[ext_key] = d.isoformat()
+            else:
+                external[ext_key] = val_str
+
     if lr.get("date") and lr.get("pre_money_valuation"):
         lr.setdefault("amount_raised", "0")
         result["last_round"] = lr
+    if cap_table:
+        result["cap_table"] = cap_table
+    if financials:
+        result["financials"] = financials
+    if qualitative:
+        result["qualitative"] = qualitative
+    if external:
+        result["external_mapping"] = external
 
     return result
 
